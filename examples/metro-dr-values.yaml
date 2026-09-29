@@ -12,16 +12,20 @@
 # RHACM observability. The OpenShift DR cluster operator match is the
 # ramen setup health signal. Metro-DR does not label openshift-operators.
 #
-# Prerequisites: OpenShift 4.17, ODF Multicluster Orchestrator with the
-# console plugin, RHACM 2.11, and RHACM observability enabled.
+# Prerequisites: OpenShift 4.17, the Data Foundation Multicluster Orchestrator
+# console plugin, and RHACM. The chart creates MultiClusterObservability and an
+# ExternalSecret for thanos-object-storage. Add that name to values-secret.yaml
+# and run make load-secrets. See the chart README.
 #
-# Refresh the hub console. Select All Clusters, open Data Services, click
-# Data policies, then the Disaster recovery tab.
+# Refresh the hub console. Select Fleet Management, open Data Services,
+# click Disaster recovery, then the Overview tab.
 
 clusterMonitoringLabel:
   enabled: false
 
 acmObservability:
   enabled: true
+  multiClusterObservability:
+    enabled: true
   matches:
     - '__name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"'

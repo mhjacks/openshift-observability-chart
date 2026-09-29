@@ -5,7 +5,7 @@
 
 {{ template "chart.description" . }}
 
-A default install runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip it.
+A default install creates `MultiClusterObservability` and runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip the label. Set `acmObservability.multiClusterObservability.enabled` to `false` to skip the observability object.
 
 Thanos Ruler storage follows `clusterPlatform` when that is set, otherwise `global.clusterPlatform` from the patterns operator. AWS, Azure, and GCP use `gp3-csi`, `managed-csi`, and `standard-csi`. Other platforms get no storage class unless you set `monitoring.thanos.storageClassName`. Set `monitoring.thanos.enabled` to `false` to skip it.
 
@@ -14,7 +14,36 @@ The chart writes `enableUserWorkload: true` into `cluster-monitoring-config`. A 
 Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
 [Monitoring disaster recovery health](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health).
 
-Both usages need OpenShift 4.17, the ODF Multicluster Orchestrator console plugin, RHACM 2.11, and RHACM observability on the hub.
+Both usages need OpenShift 4.17, the Data Foundation Multicluster Orchestrator console plugin, and RHACM. `MultiClusterObservability` turns the disaster recovery Overview cards on.
+
+An ExternalSecret writes secret `thanos-object-storage` key `thanos.yaml` in `open-cluster-management-observability`. AWS, Azure, and GCP set the StatefulSet storage class to `gp3-csi`, `managed-csi`, or `standard-csi`.
+
+## Thanos object storage
+
+Add the object storage file to the pattern `values-secret.yaml` (version 2.0). Keep that file out of Git. With no `vaultPrefixes`, the loader stores it at `secret/hub/thanos-object-storage`, which External Secrets reads as `secret/data/hub/thanos-object-storage`.
+
+```yaml
+secrets:
+  - name: thanos-object-storage
+    fields:
+      - name: thanos.yaml
+        path: ~/thanos.yaml
+        onMissingValue: error
+```
+
+`~/thanos.yaml` is the Thanos object storage file:
+
+```yaml
+type: s3
+config:
+  bucket: BUCKET
+  endpoint: s3.REGION.amazonaws.com
+  insecure: false
+  access_key: ACCESS_KEY
+  secret_key: SECRET_KEY
+```
+
+From the pattern repository, run `make load-secrets`. The chart ExternalSecret uses ClusterSecretStore `vault-backend`. Override `secretStore` or `acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey` when the store or path is different. Set `externalSecret.enabled` to `false` to supply the Kubernetes secret yourself.
 
 ## Regional-DR
 
@@ -42,7 +71,7 @@ helm upgrade --install observability . \
 
 `examples/metro-dr-values.yaml` keeps the OpenShift DR cluster operator match from that allowlist. It omits the Ceph mirror metrics and the VolSync pod match, and it turns `clusterMonitoringLabel` off. Application count comes from RHACM observability.
 
-Refresh the hub console and select All Clusters. Open Data Services, click Data policies, then the Disaster recovery tab.
+Refresh the hub console and select Fleet Management. Open Data Services, click Disaster recovery, then the Overview tab. Protected applications and Topology show the same workloads.
 
 ## Add another dashboard or metric set
 
@@ -57,9 +86,11 @@ Layer a second values file, or add keys beside the allowlist:
 
 ### 0.1.0
 
-First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false.
+First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A default install creates `MultiClusterObservability`. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false.
 
-Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlatform` for AWS, Azure, and GCP. The user-workload ConfigMap is applied by a Job after its namespace exists. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
+Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlatform` for AWS, Azure, and GCP. The user-workload ConfigMap is applied by a Job after its namespace exists.
+
+An ExternalSecret loads Thanos object storage from the pattern `values-secret.yaml` entry `thanos-object-storage`. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
 {{ template "chart.homepageLine" . }}
 

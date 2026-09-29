@@ -2,6 +2,7 @@
 suite: disaster recovery examples
 templates:
   - templates/acm-allowlist.yaml
+  - templates/multicluster-observability.yaml
   - templates/dashboards.yaml
   - templates/prometheus-rules.yaml
   - templates/namespaces.yaml
@@ -42,6 +43,28 @@ tests:
               - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
               - __name__="kube_running_pod_ready",namespace=~"volsync-system|openshift-operators",pod=~"volsync.*"
         template: templates/acm-allowlist.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: metadata.name
+          value: observability
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: spec.storageConfig.metricObjectStorage.name
+          value: thanos-object-storage
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: spec.storageConfig.metricObjectStorage.key
+          value: thanos.yaml
+        template: templates/multicluster-observability.yaml
+      - notExists:
+          path: spec.storageConfig.storageClass
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "2"
+        template: templates/acm-allowlist.yaml
 
   - it: publishes the Metro-DR allowlist
     values:
@@ -59,3 +82,19 @@ tests:
             matches:
               - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
         template: templates/acm-allowlist.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/multicluster-observability.yaml
+
+  - it: selects a storage class from clusterPlatform
+    values:
+      - ../examples/regional-dr-values.yaml
+    set:
+      global:
+        clusterPlatform: AWS
+      clusterPlatform: Azure
+    asserts:
+      - equal:
+          path: spec.storageConfig.storageClass
+          value: managed-csi
+        template: templates/multicluster-observability.yaml

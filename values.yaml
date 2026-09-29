@@ -7,6 +7,12 @@
 # -- Platform override. Empty uses global.clusterPlatform from the patterns operator.
 clusterPlatform: ""
 
+secretStore:
+  # -- External Secrets store that holds pattern secrets
+  name: vault-backend
+  # -- External Secrets store kind
+  kind: ClusterSecretStore
+
 # -- Chart name override used on standard labels
 nameOverride: ""
 
@@ -87,6 +93,25 @@ acmObservability:
   recordingRules: []
   # -- Annotations for the allowlist ConfigMap
   annotations: {}
+  multiClusterObservability:
+    # -- Create MultiClusterObservability. The console shows the disaster recovery Overview cards only when this object exists.
+    enabled: true
+    # -- Object name. Advanced Cluster Management expects observability.
+    name: observability
+    # -- StatefulSet storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi from clusterPlatform.
+    storageClassName: ""
+    metricObjectStorage:
+      # -- Secret written by the ExternalSecret. Advanced Cluster Management reads key thanos.yaml.
+      name: thanos-object-storage
+      # -- Key in the object storage secret
+      key: thanos.yaml
+      externalSecret:
+        # -- Create an ExternalSecret from the values-secret.yaml entry thanos-object-storage
+        enabled: true
+        # -- Vault path. Field thanos.yaml is the secret key.
+        vaultKey: secret/data/hub/thanos-object-storage
+        # -- How often External Secrets refreshes the secret
+        refreshInterval: 15s
 
 clusterMonitoringLabel:
   # -- Run a bootstrap Job that labels the operators namespace, then a CronJob that keeps the label set

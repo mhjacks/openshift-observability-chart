@@ -102,6 +102,26 @@ global.clusterPlatform Helm parameter injected by the patterns operator.
 {{- end -}}
 
 {{/*
+StatefulSet storage class for MultiClusterObservability.
+AWS, Azure, and GCP have defaults. Every other platform has none unless
+acmObservability.multiClusterObservability.storageClassName is set.
+*/}}
+{{- define "openshift-observability.acm.storageClassName" -}}
+{{- if .Values.acmObservability.multiClusterObservability.storageClassName -}}
+{{- .Values.acmObservability.multiClusterObservability.storageClassName -}}
+{{- else -}}
+{{- $platform := include "openshift-observability.platform" . -}}
+{{- if eq $platform "aws" -}}
+gp3-csi
+{{- else if eq $platform "azure" -}}
+managed-csi
+{{- else if eq $platform "gcp" -}}
+standard-csi
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Storage class for the Thanos Ruler PVC.
 AWS, Azure, and GCP have defaults. Every other platform has none unless
 monitoring.thanos.storageClassName is set.

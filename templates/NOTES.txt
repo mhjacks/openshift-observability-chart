@@ -30,6 +30,17 @@ A Job applies that config after openshift-user-workload-monitoring exists.
 A bootstrap Job sets {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value }} on namespace {{ .Values.clusterMonitoringLabel.namespace }}.
 A CronJob keeps that label set ({{ .Values.clusterMonitoringLabel.schedule }}).
 {{- end }}
+{{- if or .Values.acmObservability.enabled .Values.acmObservability.multiClusterObservability.enabled }}
+{{- if .Values.acmObservability.multiClusterObservability.enabled }}
+
+MultiClusterObservability {{ .Values.acmObservability.multiClusterObservability.name }} turns the Overview cards on.
+{{- if .Values.acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.enabled }}
+An ExternalSecret writes {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.name }} key {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.key }} from {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey }}.
+Add a thanos-object-storage entry to values-secret.yaml, then run make load-secrets.
+{{- else }}
+The secret {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.name }} key {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.key }} must already exist in {{ .Values.acmObservability.namespace }}.
+{{- end }}
+{{- end }}
 {{- if .Values.acmObservability.enabled }}
 
 The RHACM allowlist that enables the disaster recovery dashboard is
@@ -39,7 +50,8 @@ Regional-DR also needs the operators namespace labeled:
 
   oc label namespace {{ .Values.clusterMonitoringLabel.namespace }} {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value | squote }}
 {{- end }}
+{{- end }}
 
-Refresh the hub console, select All Clusters, open Data Services, click
-Data policies, then open the Disaster recovery tab.
+Refresh the hub console, select Fleet Management, open Data Services,
+click Disaster recovery, then the Overview tab.
 {{- end }}

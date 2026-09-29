@@ -1,0 +1,18 @@
+{{- if .Values.acmObservability.multiClusterObservability.enabled }}
+{{- $class := include "openshift-observability.acm.storageClassName" . | trim }}
+{{- $objectStorage := .Values.acmObservability.multiClusterObservability.metricObjectStorage }}
+{{- $meta := dict "name" .Values.acmObservability.multiClusterObservability.name "namespace" "" "root" $ "component" "multicluster-observability" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: observability.open-cluster-management.io/v1beta2
+kind: MultiClusterObservability
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  observabilityAddonSpec: {}
+  storageConfig:
+    {{- with $class }}
+    storageClass: {{ . }}
+    {{- end }}
+    metricObjectStorage:
+      name: {{ $objectStorage.name }}
+      key: {{ $objectStorage.key }}
+{{- end }}

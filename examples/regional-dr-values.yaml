@@ -13,17 +13,21 @@
 # "Enable monitoring for disaster recovery" step, and it is required for
 # Regional-DR. This chart does not create or replace the Namespace.
 #
-# Prerequisites: OpenShift 4.17, ODF Multicluster Orchestrator with the
-# console plugin, RHACM 2.11, and RHACM observability enabled.
+# Prerequisites: OpenShift 4.17, the Data Foundation Multicluster Orchestrator
+# console plugin, and RHACM. The chart creates MultiClusterObservability and an
+# ExternalSecret for thanos-object-storage. Add that name to values-secret.yaml
+# and run make load-secrets. See the chart README.
 #
-# Refresh the hub console. Select All Clusters, open Data Services, click
-# Data policies, then the Disaster recovery tab.
+# Refresh the hub console. Select Fleet Management, open Data Services,
+# click Disaster recovery, then the Overview tab.
 
 clusterMonitoringLabel:
   enabled: true
 
 acmObservability:
   enabled: true
+  multiClusterObservability:
+    enabled: true
   names:
     - ceph_rbd_mirror_snapshot_sync_bytes
     - ceph_rbd_mirror_snapshot_snapshots

@@ -7,10 +7,78 @@ templates:
   - templates/namespaces.yaml
   - templates/monitoring-config.yaml
   - templates/acm-allowlist.yaml
+  - templates/multicluster-observability.yaml
+  - templates/thanos-object-storage-external-secret.yaml
 release:
   name: observability
 tests:
-  - it: renders nothing
+  - it: renders nothing except MultiClusterObservability
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/dashboards.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/prometheus-rules.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/monitors.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/namespaces.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/acm-allowlist.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: metadata.name
+          value: observability
+        template: templates/multicluster-observability.yaml
+      - equal:
+          path: spec.storageConfig.metricObjectStorage.name
+          value: thanos-object-storage
+        template: templates/multicluster-observability.yaml
+      - notExists:
+          path: spec.storageConfig.storageClass
+        template: templates/multicluster-observability.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/thanos-object-storage-external-secret.yaml
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+        template: templates/thanos-object-storage-external-secret.yaml
+      - equal:
+          path: spec.secretStoreRef.name
+          value: vault-backend
+        template: templates/thanos-object-storage-external-secret.yaml
+      - equal:
+          path: spec.data[0].secretKey
+          value: thanos.yaml
+        template: templates/thanos-object-storage-external-secret.yaml
+      - equal:
+          path: spec.data[0].remoteRef.key
+          value: secret/data/hub/thanos-object-storage
+        template: templates/thanos-object-storage-external-secret.yaml
+      - equal:
+          path: spec.data[0].remoteRef.property
+          value: thanos.yaml
+        template: templates/thanos-object-storage-external-secret.yaml
+
+  - it: skips the Thanos ExternalSecret when disabled
+    set:
+      acmObservability:
+        multiClusterObservability:
+          metricObjectStorage:
+            externalSecret:
+              enabled: false
+    templates:
+      - templates/thanos-object-storage-external-secret.yaml
     asserts:
       - hasDocuments:
           count: 0

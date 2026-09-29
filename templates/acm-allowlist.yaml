@@ -12,7 +12,11 @@
 {{- if not $out }}
 {{- fail "acmObservability is enabled but names, matches, and recordingRules are empty" }}
 {{- end }}
-{{- $meta := dict "name" .Values.acmObservability.name "namespace" .Values.acmObservability.namespace "root" $ "component" "acm-allowlist" "labels" (dict) "annotations" (default (dict) .Values.acmObservability.annotations) }}
+{{- $annotations := merge (dict) (default (dict) .Values.acmObservability.annotations) }}
+{{- if and .Values.acmObservability.multiClusterObservability.enabled (not (hasKey $annotations "argocd.argoproj.io/sync-wave")) }}
+{{- $_ := set $annotations "argocd.argoproj.io/sync-wave" "2" }}
+{{- end }}
+{{- $meta := dict "name" .Values.acmObservability.name "namespace" .Values.acmObservability.namespace "root" $ "component" "acm-allowlist" "labels" (dict) "annotations" $annotations }}
 ---
 apiVersion: v1
 kind: ConfigMap
