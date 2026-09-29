@@ -1,0 +1,15 @@
+{{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+{{- $name := include "openshift-observability.userWorkload.bootstrapName" . }}
+{{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "user-workload-monitoring" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "3") }}
+---
+apiVersion: batch/v1
+kind: Job
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  parallelism: 1
+  completions: 1
+  backoffLimit: {{ .Values.monitoring.userWorkload.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.monitoring.userWorkload.activeDeadlineSeconds }}
+  template:
+    {{- include "openshift-observability.userWorkload.podTemplate" . | nindent 4 }}
+{{- end }}

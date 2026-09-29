@@ -1,0 +1,11 @@
+{{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+{{- $name := include "openshift-observability.userWorkload.desiredName" . }}
+{{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "user-workload-monitoring" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  config.yaml: |
+{{ include "openshift-observability.userWorkload.config" . | indent 4 }}
+{{- end }}

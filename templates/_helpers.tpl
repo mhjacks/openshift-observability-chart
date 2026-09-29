@@ -89,16 +89,29 @@ ose-cli-rhel9 provides oc. Repository and tag stay separate, as in vp-manage-pro
 {{- end -}}
 
 {{/*
+Platform name. clusterPlatform wins when set, so a values file can override the
+global.clusterPlatform Helm parameter injected by the patterns operator.
+*/}}
+{{- define "openshift-observability.platform" -}}
+{{- $global := .Values.global | default dict -}}
+{{- $fromGlobal := "" -}}
+{{- if kindIs "map" $global -}}
+{{- $fromGlobal = index $global "clusterPlatform" | default "" -}}
+{{- end -}}
+{{- .Values.clusterPlatform | default $fromGlobal | trim | lower -}}
+{{- end -}}
+
+{{/*
 Storage class for the Thanos Ruler PVC.
-AWS, Azure, and GCP have defaults. Every other platform, including an empty
-global.clusterPlatform, has none unless monitoring.thanos.storageClassName is set.
+AWS, Azure, and GCP have defaults. Every other platform has none unless
+monitoring.thanos.storageClassName is set.
 */}}
 {{- define "openshift-observability.thanos.storageClassName" -}}
 {{- if .Values.monitoring.thanos.enabled -}}
 {{- if .Values.monitoring.thanos.storageClassName -}}
 {{- .Values.monitoring.thanos.storageClassName -}}
 {{- else -}}
-{{- $platform := .Values.global.clusterPlatform | default "" | lower -}}
+{{- $platform := include "openshift-observability.platform" . -}}
 {{- if eq $platform "aws" -}}
 gp3-csi
 {{- else if eq $platform "azure" -}}
@@ -108,6 +121,145 @@ standard-csi
 {{- end -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+YAML for user-workload-monitoring-config. Empty when there is nothing to apply.
+*/}}
+{{- define "openshift-observability.userWorkload.config" -}}
+{{- $thanosClass := include "openshift-observability.thanos.storageClassName" . | trim -}}
+{{- $base := dict -}}
+{{- if .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement -}}
+{{- $_ := set $base "namespacesWithoutLabelEnforcement" .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement -}}
+{{- end -}}
+{{- if $thanosClass -}}
+{{- $spec := dict "storageClassName" $thanosClass "resources" (dict "requests" (dict "storage" .Values.monitoring.thanos.storage)) -}}
+{{- $_ := set $base "thanosRuler" (dict "volumeClaimTemplate" (dict "spec" $spec)) -}}
+{{- end -}}
+{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.userWorkload.config)) | default dict -}}
+{{- $cfg := mergeOverwrite $base $extra -}}
+{{- if $cfg -}}
+{{- toYaml $cfg -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+true when the chart should turn on user workload monitoring and apply its config.
+monitoring.cluster.config.enableUserWorkload false suppresses that.
+*/}}
+{{- define "openshift-observability.userWorkload.shouldApply" -}}
+{{- $uw := include "openshift-observability.userWorkload.config" . | trim -}}
+{{- if $uw -}}
+{{- $enable := true -}}
+{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.cluster.config)) | default dict -}}
+{{- if hasKey $extra "enableUserWorkload" -}}
+{{- $enable = index $extra "enableUserWorkload" -}}
+{{- end -}}
+{{- if $enable }}true{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openshift-observability.userWorkload.base" -}}
+{{- printf "%s-uwm" .Release.Name | trunc 50 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openshift-observability.userWorkload.serviceAccount" -}}
+{{- include "openshift-observability.dnsName" (include "openshift-observability.userWorkload.base" .) -}}
+{{- end -}}
+
+{{- define "openshift-observability.userWorkload.desiredName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-desired" (include "openshift-observability.userWorkload.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.userWorkload.bootstrapName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-bootstrap" (include "openshift-observability.userWorkload.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.userWorkload.cronjobName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-cronjob" (include "openshift-observability.userWorkload.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{/*
+Pod template shared by the user-workload apply Job and CronJob.
+The Job waits until Cluster Monitoring Operator creates the namespace.
+*/}}
+{{- define "openshift-observability.userWorkload.podTemplate" -}}
+metadata:
+  labels:
+    {{- include "openshift-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: user-workload-monitoring
+  annotations:
+    openshift.io/required-scc: restricted-v2
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "openshift-observability.userWorkload.serviceAccount" . }}
+  automountServiceAccountToken: true
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  volumes:
+    - name: config
+      configMap:
+        name: {{ include "openshift-observability.userWorkload.desiredName" . }}
+    - name: tmp
+      emptyDir: {}
+  containers:
+    - name: apply
+      image: {{ printf "%s:%s" (include "openshift-observability.clusterMonitoringLabel.imageRepository" .) (include "openshift-observability.clusterMonitoringLabel.imageTag" .) | quote }}
+      imagePullPolicy: {{ include "openshift-observability.clusterMonitoringLabel.imagePullPolicy" . }}
+      env:
+        - name: HOME
+          value: /tmp
+        - name: TARGET_NAMESPACE
+          value: openshift-user-workload-monitoring
+        - name: TARGET_NAME
+          value: user-workload-monitoring-config
+        - name: WAIT_SECONDS
+          value: {{ .Values.monitoring.userWorkload.waitSeconds | quote }}
+      command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          if command -v oc >/dev/null 2>&1; then
+            cli=oc
+          else
+            cli=kubectl
+          fi
+          deadline=$((SECONDS + WAIT_SECONDS))
+          until "$cli" get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; do
+            if (( SECONDS >= deadline )); then
+              echo "timed out waiting for namespace $TARGET_NAMESPACE" >&2
+              exit 1
+            fi
+            echo "waiting for namespace $TARGET_NAMESPACE"
+            sleep 10
+          done
+          "$cli" create configmap "$TARGET_NAME" \
+            --namespace "$TARGET_NAMESPACE" \
+            --from-file=config.yaml=/etc/monitoring/config.yaml \
+            --dry-run=client -o yaml | "$cli" apply -f -
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 256Mi
+      volumeMounts:
+        - name: config
+          mountPath: /etc/monitoring
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
 {{- end -}}
 
 {{/*

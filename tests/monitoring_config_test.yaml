@@ -2,6 +2,7 @@
 suite: monitoring config and ACM allowlist
 templates:
   - templates/monitoring-config.yaml
+  - templates/user-workload-monitoring-desired.yaml
   - templates/acm-allowlist.yaml
 release:
   name: observability
@@ -21,8 +22,11 @@ tests:
             - dr-observability
     asserts:
       - hasDocuments:
-          count: 2
+          count: 1
         template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/user-workload-monitoring-desired.yaml
       - hasDocuments:
           count: 0
         template: templates/acm-allowlist.yaml
@@ -50,10 +54,11 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "dr-observability"
-        template: templates/monitoring-config.yaml
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
+      - equal:
+          path: metadata.namespace
+          value: openshift-monitoring
+        template: templates/user-workload-monitoring-desired.yaml
 
   - it: lets cluster config override enableUserWorkload
     templates:

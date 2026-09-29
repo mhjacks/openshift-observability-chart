@@ -4,9 +4,8 @@
 # Regional-DR: examples/regional-dr-values.yaml
 # Metro-DR: examples/metro-dr-values.yaml
 
-global:
-  # -- Cluster platform. AWS, Azure, and GCP select a Thanos Ruler storage class. Other values do not.
-  clusterPlatform: ""
+# -- Platform override. Empty uses global.clusterPlatform from the patterns operator.
+clusterPlatform: ""
 
 # -- Chart name override used on standard labels
 nameOverride: ""
@@ -49,20 +48,28 @@ monitoring:
     # -- Extra keys merged into cluster-monitoring-config data.config.yaml. These override enableUserWorkload.
     config: {}
   userWorkload:
-    # -- Render user-workload-monitoring-config. The openshift-user-workload-monitoring namespace must already exist.
+    # -- Apply user-workload-monitoring-config after its namespace exists
     enabled: false
     # -- Projects whose PrometheusRules are not rewritten with their own namespace label
     namespacesWithoutLabelEnforcement: []
-    # -- Annotations for the user-workload-monitoring-config ConfigMap
+    # -- Annotations stored on the desired user-workload config
     annotations: {}
     # -- Extra keys merged into user-workload-monitoring-config data.config.yaml
     config: {}
+    # -- CronJob schedule that reapplies the config after the namespace exists
+    schedule: "*/15 * * * *"
+    # -- Seconds the apply Job may run while waiting for the namespace
+    activeDeadlineSeconds: 900
+    # -- Seconds to wait for openshift-user-workload-monitoring inside the Job
+    waitSeconds: 600
+    # -- Retries while the namespace or API is not ready
+    backoffLimit: 99
   thanos:
     # -- Give Thanos Ruler a PVC when a storage class is known
     enabled: true
     # -- Thanos Ruler PVC size
     storage: 10Gi
-    # -- Thanos Ruler storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi.
+    # -- Thanos Ruler storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi from clusterPlatform.
     storageClassName: ""
 
 acmObservability:

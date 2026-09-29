@@ -24,7 +24,7 @@ OpenShift observability objects from release {{ .Release.Name }}:
 {{- $thanosClass := include "openshift-observability.thanos.storageClassName" . | trim }}
 {{- if $thanosClass }}
 Thanos Ruler stores metrics on storage class {{ $thanosClass }} ({{ .Values.monitoring.thanos.storage }}).
-User workload monitoring is enabled so Thanos Ruler can run.
+A Job applies that config after openshift-user-workload-monitoring exists.
 {{- end }}
 {{- if .Values.clusterMonitoringLabel.enabled }}
 A bootstrap Job sets {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value }} on namespace {{ .Values.clusterMonitoringLabel.namespace }}.

@@ -1,0 +1,28 @@
+{{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+{{- $name := include "openshift-observability.userWorkload.serviceAccount" . }}
+{{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "user-workload-monitoring" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "openshift-observability.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: user-workload-monitoring
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

@@ -2,6 +2,9 @@
 suite: thanos ruler storage
 templates:
   - templates/monitoring-config.yaml
+  - templates/user-workload-monitoring-desired.yaml
+  - templates/user-workload-monitoring-bootstrap-job.yaml
+  - templates/user-workload-monitoring-cronjob.yaml
 release:
   name: observability
 tests:
@@ -11,25 +14,26 @@ tests:
         clusterPlatform: AWS
     asserts:
       - hasDocuments:
-          count: 2
+          count: 1
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/user-workload-monitoring-cronjob.yaml
       - matchRegex:
           path: data["config.yaml"]
           pattern: "enableUserWorkload: true"
-        documentSelector:
-          path: metadata.name
-          value: cluster-monitoring-config
+        template: templates/monitoring-config.yaml
       - matchRegex:
           path: data["config.yaml"]
           pattern: "storageClassName: gp3-csi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
       - matchRegex:
-          path: data["config.yaml"]
-          pattern: "storage: 10Gi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "waiting for namespace"
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
 
   - it: uses managed-csi on Azure
     set:
@@ -39,9 +43,7 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "storageClassName: managed-csi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
 
   - it: uses standard-csi on GCP
     set:
@@ -51,9 +53,7 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "storageClassName: standard-csi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
 
   - it: leaves Thanos storage unset for other platforms
     set:
@@ -62,11 +62,19 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
 
   - it: leaves Thanos storage unset when the platform is empty
     asserts:
       - hasDocuments:
           count: 0
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/user-workload-monitoring-desired.yaml
 
   - it: uses an explicit storage class on any platform
     set:
@@ -80,15 +88,22 @@ tests:
       - matchRegex:
           path: data["config.yaml"]
           pattern: "storageClassName: thin-csi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
       - matchRegex:
           path: data["config.yaml"]
           pattern: "storage: 20Gi"
-        documentSelector:
-          path: metadata.name
-          value: user-workload-monitoring-config
+        template: templates/user-workload-monitoring-desired.yaml
+
+  - it: lets clusterPlatform override global.clusterPlatform
+    set:
+      global:
+        clusterPlatform: AWS
+      clusterPlatform: Azure
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storageClassName: managed-csi"
+        template: templates/user-workload-monitoring-desired.yaml
 
   - it: skips Thanos storage when disabled
     set:
@@ -100,3 +115,10 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/user-workload-monitoring-desired.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
