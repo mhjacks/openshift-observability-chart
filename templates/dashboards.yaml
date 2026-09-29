@@ -1,0 +1,45 @@
+{{- range $name, $dash := .Values.dashboards }}
+{{- if $dash.enabled }}
+{{- $content := "" }}
+{{- if and $dash.file $dash.json }}
+{{- fail (printf "dashboard %s sets both file and json; use one" $name) }}
+{{- else if $dash.file }}
+{{- $content = $.Files.Get $dash.file }}
+{{- if not $content }}
+{{- fail (printf "dashboard %s file %s is missing or empty" $name $dash.file) }}
+{{- end }}
+{{- else if $dash.json }}
+{{- if kindIs "string" $dash.json }}
+{{- $content = $dash.json }}
+{{- else }}
+{{- $content = $dash.json | toJson }}
+{{- end }}
+{{- else }}
+{{- fail (printf "dashboard %s requires file or json" $name) }}
+{{- end }}
+{{- $admin := $.Values.dashboardDefaults.admin }}
+{{- if hasKey $dash "admin" }}
+{{- $admin = $dash.admin }}
+{{- end }}
+{{- $developer := $.Values.dashboardDefaults.developer }}
+{{- if hasKey $dash "developer" }}
+{{- $developer = $dash.developer }}
+{{- end }}
+{{- $labels := dict }}
+{{- if $admin }}
+{{- $_ := set $labels "console.openshift.io/dashboard" "true" }}
+{{- end }}
+{{- if $developer }}
+{{- $_ := set $labels "console.openshift.io/odc-dashboard" "true" }}
+{{- end }}
+{{- $labels = mergeOverwrite $labels (default (dict) $dash.labels) }}
+{{- $meta := dict "name" $name "namespace" ($dash.namespace | default $.Values.dashboardDefaults.namespace) "root" $ "component" "dashboard" "labels" $labels "annotations" (default (dict) $dash.annotations) }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  {{ default (printf "%s.json" $name) $dash.dataKey }}: |-
+{{ $content | trim | indent 4 }}
+{{- end }}
+{{- end }}

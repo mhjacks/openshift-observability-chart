@@ -1,1 +1,70 @@
 ---
+# Defaults render no objects. Include an example or add entries below.
+# Regional-DR: examples/regional-dr-values.yaml
+# Metro-DR: examples/metro-dr-values.yaml
+
+# -- Chart name override used on standard labels
+nameOverride: ""
+
+dashboardDefaults:
+  # -- Namespace that receives console dashboard ConfigMaps
+  namespace: openshift-config-managed
+  # -- Publish to the Administrator perspective when a dashboard omits admin
+  admin: true
+  # -- Publish to the Developer perspective when a dashboard omits developer
+  developer: false
+
+# -- Console dashboards keyed by ConfigMap name.
+# Each entry accepts enabled, namespace, file or an inline document, admin, developer, labels, and annotations.
+# file is a path inside this chart. The inline document is a JSON string or object.
+dashboards: {}
+
+# -- PrometheusRule objects keyed by name.
+# Each entry accepts enabled, namespace, labels, annotations, and groups.
+prometheusRules: {}
+
+# -- ServiceMonitor objects keyed by name. spec is copied through as written.
+serviceMonitors: {}
+
+# -- PodMonitor objects keyed by name. spec is copied through as written.
+podMonitors: {}
+
+# -- Namespaces to create for rules or monitors that need their own project.
+# Each entry accepts enabled, labels, and annotations. The map key is the namespace name.
+namespaces: {}
+
+monitoring:
+  cluster:
+    # -- Render cluster-monitoring-config in openshift-monitoring. This replaces that ConfigMap.
+    enabled: false
+    # -- enableUserWorkload field written into cluster-monitoring-config
+    enableUserWorkload: false
+    # -- Annotations for the cluster-monitoring-config ConfigMap
+    annotations: {}
+    # -- Extra keys merged into cluster-monitoring-config data.config.yaml. These override enableUserWorkload.
+    config: {}
+  userWorkload:
+    # -- Render user-workload-monitoring-config. The openshift-user-workload-monitoring namespace must already exist.
+    enabled: false
+    # -- Projects whose PrometheusRules are not rewritten with their own namespace label
+    namespacesWithoutLabelEnforcement: []
+    # -- Annotations for the user-workload-monitoring-config ConfigMap
+    annotations: {}
+    # -- Extra keys merged into user-workload-monitoring-config data.config.yaml
+    config: {}
+
+acmObservability:
+  # -- Render the RHACM observability custom metrics allowlist
+  enabled: false
+  # -- Namespace of the RHACM observability stack
+  namespace: open-cluster-management-observability
+  # -- Allowlist ConfigMap name
+  name: observability-metrics-custom-allowlist
+  # -- Metric names collected from managed clusters
+  names: []
+  # -- Metric match expressions collected from managed clusters
+  matches: []
+  # -- Recording rules evaluated for managed-cluster metrics. Each item has record and expr.
+  recordingRules: []
+  # -- Annotations for the allowlist ConfigMap
+  annotations: {}

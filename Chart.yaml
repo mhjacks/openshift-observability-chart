@@ -1,6 +1,14 @@
 apiVersion: v2
-description: A Helm chart to serve as the Validated Patterns Template
+name: openshift-observability
+description: Publish OpenShift console dashboards, Prometheus rules, and scrape configs from values
+type: application
+version: 0.1.0
 keywords:
-  - pattern
-name: vp-template
-version: 0.0.1
+  - openshift
+  - observability
+  - monitoring
+  - dashboard
+  - disaster-recovery
+home: https://github.com/mhjacks/openshift-observability-chart
+sources:
+  - https://github.com/mhjacks/openshift-observability-chart

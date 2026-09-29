@@ -29,6 +29,7 @@ helm-docs: ## Generates README.md from values.yaml
 	# podman run $(PODMAN_ARGS) -v $(PWD):/helm-docs:rw $(HELM_DOCS_IMAGE) -x
 	# Then render the README.md file
 	podman run $(PODMAN_ARGS) -v $(PWD):/helm-docs:rw $(HELM_DOCS_IMAGE)
+	npx --yes prettier@3.6.2 --write README.md
 
 .PHONY: test
 test: helm-lint helm-unittest ## Runs helm lint and unit tests
@@ -38,6 +39,7 @@ super-linter: ## Runs super linter locally
 	rm -rf .mypy_cache
 	podman run -e RUN_LOCAL=true -e USE_FIND_ALGORITHM=true	\
 					-e VALIDATE_BIOME_FORMAT=false \
+					-e FILTER_REGEX_EXCLUDE='.*templates/.*' \
 					-v $(PWD):/tmp/lint:rw,z \
 					-w /tmp/lint \
 					ghcr.io/super-linter/super-linter:slim-v8

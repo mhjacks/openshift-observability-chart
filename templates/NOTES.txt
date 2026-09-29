@@ -1,0 +1,36 @@
+OpenShift observability objects from release {{ .Release.Name }}:
+{{- $dashCount := 0 }}
+{{- range $name, $dash := .Values.dashboards }}
+{{- if $dash.enabled }}
+{{- $dashCount = add1 $dashCount }}
+- dashboard {{ $name }} in {{ $dash.namespace | default $.Values.dashboardDefaults.namespace }}
+{{- end }}
+{{- end }}
+{{- if eq $dashCount 0 }}
+- no dashboards
+{{- else }}
+  Open Observe, then Dashboards, and select the dashboard title.
+{{- end }}
+{{- $ruleCount := 0 }}
+{{- range $name, $rule := .Values.prometheusRules }}
+{{- if $rule.enabled }}
+{{- $ruleCount = add1 $ruleCount }}
+- PrometheusRule {{ $name }} in {{ $rule.namespace }}
+{{- end }}
+{{- end }}
+{{- if eq $ruleCount 0 }}
+- no Prometheus rules
+{{- end }}
+{{- if .Values.acmObservability.enabled }}
+
+The RHACM allowlist that enables the disaster recovery dashboard is
+{{ .Values.acmObservability.name }} in {{ .Values.acmObservability.namespace }}.
+{{- if has "ceph_rbd_mirror_snapshot_sync_bytes" .Values.acmObservability.names }}
+Regional-DR also needs the operators namespace labeled:
+
+  oc label namespace openshift-operators openshift.io/cluster-monitoring='true'
+{{- end }}
+
+Refresh the hub console, select All Clusters, open Data Services, click
+Data policies, then open the Disaster recovery tab.
+{{- end }}

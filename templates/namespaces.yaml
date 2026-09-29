@@ -1,0 +1,9 @@
+{{- range $name, $ns := .Values.namespaces }}
+{{- if $ns.enabled }}
+{{- $meta := dict "name" $name "root" $ "component" "namespace" "labels" (default (dict) $ns.labels) "annotations" (default (dict) $ns.annotations) }}
+---
+apiVersion: v1
+kind: Namespace
+{{ include "openshift-observability.metadata" $meta }}
+{{- end }}
+{{- end }}

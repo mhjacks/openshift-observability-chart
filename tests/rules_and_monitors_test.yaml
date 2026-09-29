@@ -1,0 +1,110 @@
+---
+suite: rules monitors and namespaces
+templates:
+  - templates/prometheus-rules.yaml
+  - templates/monitors.yaml
+  - templates/namespaces.yaml
+release:
+  name: observability
+tests:
+  - it: renders a rule, a service monitor, and a namespace
+    set:
+      prometheusRules:
+        app-latency:
+          enabled: true
+          namespace: app-monitoring
+          groups:
+            - name: app.rules
+              rules:
+                - alert: AppSlow
+                  expr: histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m])) > 1
+                  for: 10m
+                  labels:
+                    severity: warning
+                  annotations:
+                    description: "latency high in {{ $labels.namespace }}"
+      serviceMonitors:
+        app:
+          enabled: true
+          namespace: app
+          spec:
+            selector:
+              matchLabels:
+                app: app
+            endpoints:
+              - port: metrics
+                interval: 30s
+      namespaces:
+        app-monitoring:
+          enabled: true
+          labels:
+            openshift.io/cluster-monitoring: "true"
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/prometheus-rules.yaml
+      - equal:
+          path: metadata.namespace
+          value: app-monitoring
+        template: templates/prometheus-rules.yaml
+      - equal:
+          path: spec.groups[0].rules[0].alert
+          value: AppSlow
+        template: templates/prometheus-rules.yaml
+      - matchRegex:
+          path: spec.groups[0].rules[0].annotations.description
+          pattern: namespace
+        template: templates/prometheus-rules.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/monitors.yaml
+      - equal:
+          path: spec.endpoints[0].port
+          value: metrics
+        template: templates/monitors.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/namespaces.yaml
+      - equal:
+          path: metadata.labels["openshift.io/cluster-monitoring"]
+          value: "true"
+        template: templates/namespaces.yaml
+
+  - it: renders a pod monitor
+    templates:
+      - templates/monitors.yaml
+    set:
+      podMonitors:
+        app-pods:
+          enabled: true
+          namespace: app
+          spec:
+            selector:
+              matchLabels:
+                app: app
+            podMetricsEndpoints:
+              - port: metrics
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodMonitor
+      - equal:
+          path: metadata.labels["app.kubernetes.io/component"]
+          value: pod-monitor
+
+  - it: rejects a rule without a namespace
+    templates:
+      - templates/prometheus-rules.yaml
+    set:
+      prometheusRules:
+        bare:
+          enabled: true
+          groups:
+            - name: app.rules
+              rules:
+                - record: job:up:sum
+                  expr: sum(up)
+    asserts:
+      - failedTemplate:
+          errorPattern: requires namespace

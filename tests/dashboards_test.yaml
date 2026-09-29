@@ -1,0 +1,88 @@
+---
+suite: dashboards
+templates:
+  - templates/dashboards.yaml
+release:
+  name: observability
+tests:
+  - it: publishes an inline json object
+    set:
+      dashboards:
+        app-health:
+          enabled: true
+          json:
+            title: App Health
+            uid: app-health
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: app-health
+      - equal:
+          path: metadata.namespace
+          value: openshift-config-managed
+      - equal:
+          path: metadata.labels["console.openshift.io/dashboard"]
+          value: "true"
+      - notExists:
+          path: metadata.labels["console.openshift.io/odc-dashboard"]
+      - matchRegex:
+          path: data["app-health.json"]
+          pattern: "App Health"
+
+  - it: honors perspective flags and a custom data key
+    set:
+      dashboards:
+        app-health:
+          enabled: true
+          admin: false
+          developer: true
+          dataKey: health.json
+          json: '{"title":"Health"}'
+    asserts:
+      - notExists:
+          path: metadata.labels["console.openshift.io/dashboard"]
+      - equal:
+          path: metadata.labels["console.openshift.io/odc-dashboard"]
+          value: "true"
+      - exists:
+          path: data["health.json"]
+
+  - it: skips a disabled sibling
+    set:
+      dashboards:
+        kept:
+          enabled: true
+          json: '{"title":"Kept"}'
+        skipped:
+          enabled: false
+          json: '{"title":"Skipped"}'
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: kept
+
+  - it: rejects a name that is not a DNS label
+    set:
+      dashboards:
+        Not_Valid:
+          enabled: true
+          json: "{}"
+    asserts:
+      - failedTemplate:
+          errorPattern: DNS-1123
+
+  - it: rejects a missing dashboard file
+    set:
+      dashboards:
+        missing:
+          enabled: true
+          file: files/dashboards/missing.json
+    asserts:
+      - failedTemplate:
+          errorPattern: missing or empty

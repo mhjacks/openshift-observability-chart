@@ -1,0 +1,31 @@
+{{- if .Values.monitoring.cluster.enabled }}
+{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.cluster.config)) | default (dict) }}
+{{- $cfg := mergeOverwrite (dict "enableUserWorkload" .Values.monitoring.cluster.enableUserWorkload) $extra }}
+{{- $meta := dict "name" "cluster-monitoring-config" "namespace" "openshift-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" (default (dict) .Values.monitoring.cluster.annotations) }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  config.yaml: |
+{{ toYaml $cfg | indent 4 }}
+{{- end }}
+{{- if .Values.monitoring.userWorkload.enabled }}
+{{- $base := dict }}
+{{- if .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement }}
+{{- $_ := set $base "namespacesWithoutLabelEnforcement" .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement }}
+{{- end }}
+{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.userWorkload.config)) | default (dict) }}
+{{- $cfg := mergeOverwrite $base $extra }}
+{{- if not $cfg }}
+{{- fail "monitoring.userWorkload is enabled but has no namespacesWithoutLabelEnforcement or config" }}
+{{- end }}
+{{- $meta := dict "name" "user-workload-monitoring-config" "namespace" "openshift-user-workload-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" (default (dict) .Values.monitoring.userWorkload.annotations) }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  config.yaml: |
+{{ toYaml $cfg | indent 4 }}
+{{- end }}

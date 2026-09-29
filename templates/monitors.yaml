@@ -1,0 +1,23 @@
+{{- range $kind, $items := dict "ServiceMonitor" .Values.serviceMonitors "PodMonitor" .Values.podMonitors }}
+{{- range $name, $mon := $items }}
+{{- if $mon.enabled }}
+{{- if not $mon.namespace }}
+{{- fail (printf "%s %s requires namespace" $kind $name) }}
+{{- end }}
+{{- if not $mon.spec }}
+{{- fail (printf "%s %s requires spec" $kind $name) }}
+{{- end }}
+{{- $component := "service-monitor" }}
+{{- if eq $kind "PodMonitor" }}
+{{- $component = "pod-monitor" }}
+{{- end }}
+{{- $meta := dict "name" $name "namespace" $mon.namespace "root" $ "component" $component "labels" (default (dict) $mon.labels) "annotations" (default (dict) $mon.annotations) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: {{ $kind }}
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+{{ toYaml $mon.spec | indent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

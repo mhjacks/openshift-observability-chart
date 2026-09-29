@@ -1,0 +1,61 @@
+---
+suite: disaster recovery examples
+templates:
+  - templates/acm-allowlist.yaml
+  - templates/dashboards.yaml
+  - templates/prometheus-rules.yaml
+  - templates/namespaces.yaml
+release:
+  name: observability
+tests:
+  - it: publishes the Regional-DR allowlist
+    values:
+      - ../examples/regional-dr-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/acm-allowlist.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/dashboards.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/prometheus-rules.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/namespaces.yaml
+      - equal:
+          path: metadata.name
+          value: observability-metrics-custom-allowlist
+        template: templates/acm-allowlist.yaml
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+        template: templates/acm-allowlist.yaml
+      - equal:
+          path: data["metrics_list.yaml"]
+          value: |
+            names:
+              - ceph_rbd_mirror_snapshot_sync_bytes
+              - ceph_rbd_mirror_snapshot_snapshots
+            matches:
+              - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
+              - __name__="kube_running_pod_ready",namespace=~"volsync-system|openshift-operators",pod=~"volsync.*"
+        template: templates/acm-allowlist.yaml
+
+  - it: publishes the Metro-DR allowlist
+    values:
+      - ../examples/metro-dr-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/acm-allowlist.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/namespaces.yaml
+      - equal:
+          path: data["metrics_list.yaml"]
+          value: |
+            matches:
+              - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
+        template: templates/acm-allowlist.yaml

@@ -5,9 +5,54 @@
 
 {{ template "chart.description" . }}
 
-This chart is used to serve as the template for Validated Patterns Charts
+The chart stays empty until you add dashboards, rules, or an allowlist. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
+[Monitoring disaster recovery health](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health).
+
+Both usages need OpenShift 4.17, the ODF Multicluster Orchestrator console plugin, RHACM 2.11, and RHACM observability on the hub.
+
+## Regional-DR
+
+The dashboard shows operator health, cluster health, metrics, alerts, and application count. Label the operators namespace, then install the allowlist:
+
+```bash
+oc label namespace openshift-operators openshift.io/cluster-monitoring='true'
+helm upgrade --install observability . \
+  --namespace open-cluster-management-observability \
+  -f examples/regional-dr-values.yaml
+```
+
+`examples/regional-dr-values.yaml` is the allowlist from
+[Enabling disaster recovery dashboard on Hub cluster](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health#enabling-dr-dashboard-on-hub-cluster_monitor-dr).
+The label is the previous section of that chapter, and it is required for Regional-DR.
+
+## Metro-DR
+
+The dashboard shows ramen setup health and application count:
+
+```bash
+helm upgrade --install observability . \
+  --namespace open-cluster-management-observability \
+  -f examples/metro-dr-values.yaml
+```
+
+`examples/metro-dr-values.yaml` keeps the OpenShift DR cluster operator match from that allowlist. It omits the Ceph mirror metrics and the VolSync pod match. Application count comes from RHACM observability.
+
+Refresh the hub console and select All Clusters. Open Data Services, click Data policies, then the Disaster recovery tab.
+
+## Add another dashboard or metric set
+
+Layer a second values file, or add keys beside the allowlist:
+
+- `dashboards.<name>` publishes a console ConfigMap. Set `file` to a JSON file in this chart, or set an inline document. Use Grafana schema version 14 and datasource `cluster-prometheus-proxy`. The map key is the ConfigMap name. `admin` and `developer` choose the console perspective.
+- `prometheusRules.<name>` adds recording rules and alerts. Use namespace `openshift-monitoring` for platform metrics. Platform monitoring loads rules from namespaces labeled `openshift.io/cluster-monitoring=true`. For rules that query across projects, use a user project listed in `monitoring.userWorkload.namespacesWithoutLabelEnforcement`.
+- `serviceMonitors.<name>` and `podMonitors.<name>` copy `spec` through as written.
+- Extra managed-cluster metrics belong on `acmObservability.names` or `acmObservability.matches`.
 
 ## Notable changes
+
+### 0.1.0
+
+First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
 {{ template "chart.homepageLine" . }}
 

@@ -1,0 +1,23 @@
+{{- if .Values.acmObservability.enabled }}
+{{- $out := "" }}
+{{- if .Values.acmObservability.names }}
+{{- $out = include "openshift-observability.metricsSection" (list "names" .Values.acmObservability.names) }}
+{{- end }}
+{{- if .Values.acmObservability.matches }}
+{{- $out = printf "%s%s" $out (include "openshift-observability.metricsSection" (list "matches" .Values.acmObservability.matches)) }}
+{{- end }}
+{{- if .Values.acmObservability.recordingRules }}
+{{- $out = printf "%s%s" $out (include "openshift-observability.metricsSection" (list "recording_rules" .Values.acmObservability.recordingRules)) }}
+{{- end }}
+{{- if not $out }}
+{{- fail "acmObservability is enabled but names, matches, and recordingRules are empty" }}
+{{- end }}
+{{- $meta := dict "name" .Values.acmObservability.name "namespace" .Values.acmObservability.namespace "root" $ "component" "acm-allowlist" "labels" (dict) "annotations" (default (dict) .Values.acmObservability.annotations) }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  metrics_list.yaml: |
+{{ $out | indent 4 }}
+{{- end }}

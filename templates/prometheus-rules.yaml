@@ -1,0 +1,28 @@
+{{- range $name, $rule := .Values.prometheusRules }}
+{{- if $rule.enabled }}
+{{- if not $rule.namespace }}
+{{- fail (printf "prometheusRule %s requires namespace" $name) }}
+{{- end }}
+{{- if not $rule.groups }}
+{{- fail (printf "prometheusRule %s requires groups" $name) }}
+{{- end }}
+{{- range $group := $rule.groups }}
+{{- range $item := $group.rules }}
+{{- if not $item.expr }}
+{{- fail (printf "prometheusRule %s has a rule without expr" $name) }}
+{{- end }}
+{{- if and (not $item.alert) (not $item.record) }}
+{{- fail (printf "prometheusRule %s has a rule without alert or record" $name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $meta := dict "name" $name "namespace" $rule.namespace "root" $ "component" "prometheus-rule" "labels" (default (dict) $rule.labels) "annotations" (default (dict) $rule.annotations) }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  groups:
+{{ toYaml $rule.groups | indent 4 }}
+{{- end }}
+{{- end }}

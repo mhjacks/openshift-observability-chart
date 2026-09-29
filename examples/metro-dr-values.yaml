@@ -1,0 +1,24 @@
+---
+# Metro-DR. The hub dashboard shows ramen setup health and application count.
+#
+# https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health#enabling-dr-dashboard-on-hub-cluster_monitor-dr
+#
+#   helm upgrade --install observability . \
+#     --namespace open-cluster-management-observability \
+#     -f examples/metro-dr-values.yaml
+#
+# This is the same allowlist procedure as Regional-DR, without the Ceph
+# mirror metrics or the VolSync pod match. Application count comes from
+# RHACM observability. The OpenShift DR cluster operator match is the
+# ramen setup health signal.
+#
+# Prerequisites: OpenShift 4.17, ODF Multicluster Orchestrator with the
+# console plugin, RHACM 2.11, and RHACM observability enabled.
+#
+# Refresh the hub console. Select All Clusters, open Data Services, click
+# Data policies, then the Disaster recovery tab.
+
+acmObservability:
+  enabled: true
+  matches:
+    - '__name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"'

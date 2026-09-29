@@ -14,3 +14,5 @@ jobs:
     with:
       sl_env: |
         VALIDATE_BIOME_FORMAT=false
+        # Helm templates are not valid YAML until rendered.
+        FILTER_REGEX_EXCLUDE=.*templates/.*

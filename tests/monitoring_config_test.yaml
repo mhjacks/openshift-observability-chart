@@ -1,0 +1,109 @@
+---
+suite: monitoring config and ACM allowlist
+templates:
+  - templates/monitoring-config.yaml
+  - templates/acm-allowlist.yaml
+release:
+  name: observability
+tests:
+  - it: renders cluster and user workload config
+    set:
+      monitoring:
+        cluster:
+          enabled: true
+          enableUserWorkload: true
+          config:
+            prometheusK8s:
+              retention: 15d
+        userWorkload:
+          enabled: true
+          namespacesWithoutLabelEnforcement:
+            - dr-observability
+    asserts:
+      - hasDocuments:
+          count: 2
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/acm-allowlist.yaml
+      - equal:
+          path: metadata.namespace
+          value: openshift-monitoring
+        template: templates/monitoring-config.yaml
+        documentSelector:
+          path: metadata.name
+          value: cluster-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enableUserWorkload: true"
+        template: templates/monitoring-config.yaml
+        documentSelector:
+          path: metadata.name
+          value: cluster-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "retention: 15d"
+        template: templates/monitoring-config.yaml
+        documentSelector:
+          path: metadata.name
+          value: cluster-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "dr-observability"
+        template: templates/monitoring-config.yaml
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+
+  - it: lets cluster config override enableUserWorkload
+    templates:
+      - templates/monitoring-config.yaml
+    set:
+      monitoring:
+        cluster:
+          enabled: true
+          enableUserWorkload: true
+          config:
+            enableUserWorkload: false
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enableUserWorkload: false"
+
+  - it: rejects an empty user workload config
+    templates:
+      - templates/monitoring-config.yaml
+    set:
+      monitoring:
+        userWorkload:
+          enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: no namespacesWithoutLabelEnforcement or config
+
+  - it: renders the ACM allowlist
+    templates:
+      - templates/acm-allowlist.yaml
+    set:
+      acmObservability:
+        enabled: true
+        names:
+          - ramen_last_sync_timestamp_seconds
+        matches:
+          - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
+        recordingRules:
+          - record: ramen_sync_duration_seconds
+            expr: time() - ramen_last_sync_timestamp_seconds
+    asserts:
+      - equal:
+          path: metadata.name
+          value: observability-metrics-custom-allowlist
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+      - matchRegex:
+          path: data["metrics_list.yaml"]
+          pattern: "ramen_last_sync_timestamp_seconds"
+      - matchRegex:
+          path: data["metrics_list.yaml"]
+          pattern: "recording_rules:"

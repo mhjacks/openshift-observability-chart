@@ -1,0 +1,16 @@
+---
+suite: default values render no objects
+templates:
+  - templates/dashboards.yaml
+  - templates/prometheus-rules.yaml
+  - templates/monitors.yaml
+  - templates/namespaces.yaml
+  - templates/monitoring-config.yaml
+  - templates/acm-allowlist.yaml
+release:
+  name: observability
+tests:
+  - it: renders nothing
+    asserts:
+      - hasDocuments:
+          count: 0
