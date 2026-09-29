@@ -1,0 +1,29 @@
+{{- if .Values.clusterMonitoringLabel.enabled }}
+{{- $ns := .Values.clusterMonitoringLabel.jobNamespace | default .Release.Namespace }}
+{{- $name := include "openshift-observability.clusterMonitoringLabel.serviceAccount" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.dnsName" $ns) "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "openshift-observability.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: cluster-monitoring-label
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

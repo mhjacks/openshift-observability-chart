@@ -4,19 +4,23 @@
 #
 # https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health#enabling-dr-dashboard-on-hub-cluster_monitor-dr
 #
-#   oc label namespace openshift-operators openshift.io/cluster-monitoring='true'
 #   helm upgrade --install observability . \
 #     --namespace open-cluster-management-observability \
 #     -f examples/regional-dr-values.yaml
 #
-# The label is the "Enable monitoring for disaster recovery" step. It is
-# required for Regional-DR. This chart does not edit openshift-operators.
+# The bootstrap Job sets openshift.io/cluster-monitoring=true on
+# openshift-operators. The CronJob keeps that label set. That is the
+# "Enable monitoring for disaster recovery" step, and it is required for
+# Regional-DR. This chart does not create or replace the Namespace.
 #
 # Prerequisites: OpenShift 4.17, ODF Multicluster Orchestrator with the
 # console plugin, RHACM 2.11, and RHACM observability enabled.
 #
 # Refresh the hub console. Select All Clusters, open Data Services, click
 # Data policies, then the Disaster recovery tab.
+
+clusterMonitoringLabel:
+  enabled: true
 
 acmObservability:
   enabled: true

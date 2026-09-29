@@ -1,0 +1,16 @@
+{{- if .Values.clusterMonitoringLabel.enabled }}
+{{- $ns := .Values.clusterMonitoringLabel.jobNamespace | default .Release.Namespace }}
+{{- $name := include "openshift-observability.clusterMonitoringLabel.bootstrapName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.dnsName" $ns) "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "3") }}
+---
+apiVersion: batch/v1
+kind: Job
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  parallelism: 1
+  completions: 1
+  backoffLimit: {{ .Values.clusterMonitoringLabel.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.clusterMonitoringLabel.activeDeadlineSeconds }}
+  template:
+    {{- include "openshift-observability.clusterMonitoringLabel.podTemplate" . | nindent 4 }}
+{{- end }}

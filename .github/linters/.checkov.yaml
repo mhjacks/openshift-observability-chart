@@ -10,3 +10,7 @@ skip-check:
   - CKV_K8S_156 # Minimize ClusterRoles that grant permissions to approve CertificateSigningRequests
   - CKV_K8S_157 # Minimize Roles and ClusterRoles that grant permissions to bind RoleBindings or ClusterRoleBindings
   - CKV_K8S_158 # Minimize Roles and ClusterRoles that grant permissions to escalate Roles or ClusterRoles
+  - CKV_K8S_15 # ose-cli-rhel9 uses IfNotPresent, same as vp-manage-proxy-cluster-ca
+  - CKV_K8S_38 # The label Job mounts a token so it can patch openshift-operators
+  - CKV_K8S_40 # OpenShift restricted SCC assigns the UID from the namespace range
+  - CKV_K8S_43 # Image is repository:tag, same as vp-manage-proxy-cluster-ca

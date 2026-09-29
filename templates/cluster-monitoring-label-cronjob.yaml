@@ -1,0 +1,20 @@
+{{- if .Values.clusterMonitoringLabel.enabled }}
+{{- $ns := .Values.clusterMonitoringLabel.jobNamespace | default .Release.Namespace }}
+{{- $name := include "openshift-observability.clusterMonitoringLabel.cronjobName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.dnsName" $ns) "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "5") }}
+---
+apiVersion: batch/v1
+kind: CronJob
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  schedule: {{ .Values.clusterMonitoringLabel.schedule | quote }}
+  # if previous Job is still running, skip execution of a new Job
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ .Values.clusterMonitoringLabel.activeDeadlineSeconds }}
+      template:
+        {{- include "openshift-observability.clusterMonitoringLabel.podTemplate" . | nindent 8 }}
+{{- end }}

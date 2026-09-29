@@ -1,0 +1,133 @@
+---
+suite: cluster monitoring label job
+templates:
+  - templates/cluster-monitoring-label-bootstrap-job.yaml
+  - templates/cluster-monitoring-label-cronjob.yaml
+  - templates/cluster-monitoring-label-rbac.yaml
+  - templates/cluster-monitoring-label-networkpolicy.yaml
+release:
+  name: observability
+  namespace: open-cluster-management-observability
+tests:
+  - it: runs a bootstrap Job and a CronJob by default
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - hasDocuments:
+          count: 3
+        template: templates/cluster-monitoring-label-rbac.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/cluster-monitoring-label-networkpolicy.yaml
+      - equal:
+          path: metadata.name
+          value: observability-cluster-monitoring-label-bootstrap
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "3"
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: spec.backoffLimit
+          value: 99
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: observability-cluster-monitoring-label
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.redhat.io/openshift4/ose-cli-rhel9:v4.22
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: openshift-operators
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'label namespace "\$NAMESPACE"'
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "5"
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - equal:
+          path: spec.schedule
+          value: "*/15 * * * *"
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.serviceAccountName
+          value: observability-cluster-monitoring-label
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - equal:
+          path: rules[0].resourceNames[0]
+          value: openshift-operators
+        template: templates/cluster-monitoring-label-rbac.yaml
+        documentSelector:
+          path: kind
+          value: ClusterRole
+      - equal:
+          path: subjects[0].namespace
+          value: open-cluster-management-observability
+        template: templates/cluster-monitoring-label-rbac.yaml
+        documentSelector:
+          path: kind
+          value: ClusterRoleBinding
+
+  - it: skips the label workloads when disabled
+    set:
+      clusterMonitoringLabel:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-rbac.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-networkpolicy.yaml
+
+  - it: enables the label workloads for Regional-DR
+    values:
+      - ../examples/regional-dr-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/cluster-monitoring-label-cronjob.yaml
+
+  - it: disables the label workloads for Metro-DR
+    values:
+      - ../examples/metro-dr-values.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-bootstrap-job.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-cronjob.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-rbac.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/cluster-monitoring-label-networkpolicy.yaml

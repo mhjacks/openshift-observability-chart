@@ -1,0 +1,33 @@
+{{- if .Values.clusterMonitoringLabel.enabled }}
+{{- $ns := .Values.clusterMonitoringLabel.jobNamespace | default .Release.Namespace }}
+{{- $name := include "openshift-observability.clusterMonitoringLabel.serviceAccount" . }}
+{{- $target := include "openshift-observability.dnsName" .Values.clusterMonitoringLabel.namespace }}
+{{- $jobNs := include "openshift-observability.dnsName" $ns }}
+{{- $meta := dict "name" $name "namespace" $jobNs "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict) }}
+---
+apiVersion: v1
+kind: ServiceAccount
+{{ include "openshift-observability.metadata" $meta }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+{{ include "openshift-observability.metadata" (dict "name" $name "namespace" "" "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict)) }}
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    resourceNames: [{{ $target | quote }}]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+{{ include "openshift-observability.metadata" (dict "name" $name "namespace" "" "root" $ "component" "cluster-monitoring-label" "labels" (dict) "annotations" (dict)) }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $jobNs }}
+{{- end }}

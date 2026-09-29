@@ -53,3 +53,102 @@ metadata:
     {{- end }}
   {{- end }}
 {{- end -}}
+
+{{/*
+Release-scoped name for the cluster-monitoring label ServiceAccount and RBAC.
+*/}}
+{{- define "openshift-observability.clusterMonitoringLabel.base" -}}
+{{- printf "%s-cluster-monitoring-label" .Release.Name | trunc 50 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterMonitoringLabel.serviceAccount" -}}
+{{- include "openshift-observability.dnsName" (include "openshift-observability.clusterMonitoringLabel.base" .) -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterMonitoringLabel.bootstrapName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-bootstrap" (include "openshift-observability.clusterMonitoringLabel.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterMonitoringLabel.cronjobName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-cronjob" (include "openshift-observability.clusterMonitoringLabel.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{/*
+ose-cli-rhel9 provides oc. Repository and tag stay separate, as in vp-manage-proxy-cluster-ca.
+*/}}
+{{- define "openshift-observability.clusterMonitoringLabel.imageRepository" -}}
+{{- .Values.clusterMonitoringLabel.image.repository | default "registry.redhat.io/openshift4/ose-cli-rhel9" -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterMonitoringLabel.imageTag" -}}
+{{- .Values.clusterMonitoringLabel.image.tag | default "v4.22" -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterMonitoringLabel.imagePullPolicy" -}}
+{{- .Values.clusterMonitoringLabel.image.pullPolicy | default "IfNotPresent" -}}
+{{- end -}}
+
+{{/*
+Pod template shared by the bootstrap Job and the CronJob.
+*/}}
+{{- define "openshift-observability.clusterMonitoringLabel.podTemplate" -}}
+metadata:
+  labels:
+    {{- include "openshift-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-monitoring-label
+  annotations:
+    openshift.io/required-scc: restricted-v2
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "openshift-observability.clusterMonitoringLabel.serviceAccount" . }}
+  automountServiceAccountToken: true
+  securityContext:
+    # OpenShift restricted SCC assigns the UID from the namespace range.
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  volumes:
+    - name: tmp
+      emptyDir: {}
+  containers:
+    - name: label
+      image: {{ printf "%s:%s" (include "openshift-observability.clusterMonitoringLabel.imageRepository" .) (include "openshift-observability.clusterMonitoringLabel.imageTag" .) | quote }}
+      imagePullPolicy: {{ include "openshift-observability.clusterMonitoringLabel.imagePullPolicy" . }}
+      env:
+        - name: HOME
+          value: /tmp
+        - name: NAMESPACE
+          value: {{ .Values.clusterMonitoringLabel.namespace | quote }}
+        - name: LABEL_KEY
+          value: {{ .Values.clusterMonitoringLabel.key | quote }}
+        - name: LABEL_VALUE
+          value: {{ .Values.clusterMonitoringLabel.value | quote }}
+      command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          if command -v oc >/dev/null 2>&1; then
+            cli=oc
+          else
+            cli=kubectl
+          fi
+          "$cli" label namespace "$NAMESPACE" "${LABEL_KEY}=${LABEL_VALUE}" --overwrite
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 256Mi
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+{{- end -}}

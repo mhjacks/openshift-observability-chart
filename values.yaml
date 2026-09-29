@@ -1,5 +1,6 @@
 ---
-# Defaults render no objects. Include an example or add entries below.
+# Dashboards, rules, monitors, and the RHACM allowlist stay off until you set them.
+# clusterMonitoringLabel is on by default for Regional-DR.
 # Regional-DR: examples/regional-dr-values.yaml
 # Metro-DR: examples/metro-dr-values.yaml
 
@@ -68,3 +69,29 @@ acmObservability:
   recordingRules: []
   # -- Annotations for the allowlist ConfigMap
   annotations: {}
+
+clusterMonitoringLabel:
+  # -- Run a bootstrap Job that labels the operators namespace, then a CronJob that keeps the label set
+  enabled: true
+  # -- Namespace that receives the label. This chart does not create that namespace.
+  namespace: openshift-operators
+  # -- Label key
+  key: openshift.io/cluster-monitoring
+  # -- Label value
+  value: "true"
+  # -- CronJob schedule that re-applies the label after the bootstrap Job
+  schedule: "*/15 * * * *"
+  # ose-cli-rhel9 provides oc. The tag does not need to match the cluster version exactly.
+  image:
+    # -- Image repository for the label Job and CronJob
+    repository: registry.redhat.io/openshift4/ose-cli-rhel9
+    # -- Image tag
+    tag: v4.22
+    # -- Image pull policy
+    pullPolicy: IfNotPresent
+  # -- Seconds before the Job or CronJob pod is killed
+  activeDeadlineSeconds: 120
+  # -- Bootstrap Job retries while RBAC or the API is not ready yet
+  backoffLimit: 99
+  # -- Namespace for the Job, CronJob, and ServiceAccount. Empty uses the release namespace.
+  jobNamespace: open-cluster-management-observability

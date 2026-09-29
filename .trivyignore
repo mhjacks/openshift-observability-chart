@@ -1,0 +1,5 @@
+# OpenShift restricted SCC assigns the UID and GID from the namespace range.
+KSV-0020
+KSV-0021
+# The label Job uses registry.redhat.io/openshift4/ose-cli-rhel9.
+KSV-0125

@@ -5,17 +5,16 @@
 
 {{ template "chart.description" . }}
 
-The chart stays empty until you add dashboards, rules, or an allowlist. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
+A default install runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip it. Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
 [Monitoring disaster recovery health](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health).
 
 Both usages need OpenShift 4.17, the ODF Multicluster Orchestrator console plugin, RHACM 2.11, and RHACM observability on the hub.
 
 ## Regional-DR
 
-The dashboard shows operator health, cluster health, metrics, alerts, and application count. Label the operators namespace, then install the allowlist:
+The dashboard shows operator health, cluster health, metrics, alerts, and application count. The bootstrap Job sets `openshift.io/cluster-monitoring=true` on `openshift-operators`, and the CronJob keeps that label set:
 
 ```bash
-oc label namespace openshift-operators openshift.io/cluster-monitoring='true'
 helm upgrade --install observability . \
   --namespace open-cluster-management-observability \
   -f examples/regional-dr-values.yaml
@@ -23,7 +22,7 @@ helm upgrade --install observability . \
 
 `examples/regional-dr-values.yaml` is the allowlist from
 [Enabling disaster recovery dashboard on Hub cluster](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health#enabling-dr-dashboard-on-hub-cluster_monitor-dr).
-The label is the previous section of that chapter, and it is required for Regional-DR.
+The label is the previous section of that chapter, and it is required for Regional-DR. The chart does not create the `openshift-operators` Namespace.
 
 ## Metro-DR
 
@@ -35,7 +34,7 @@ helm upgrade --install observability . \
   -f examples/metro-dr-values.yaml
 ```
 
-`examples/metro-dr-values.yaml` keeps the OpenShift DR cluster operator match from that allowlist. It omits the Ceph mirror metrics and the VolSync pod match. Application count comes from RHACM observability.
+`examples/metro-dr-values.yaml` keeps the OpenShift DR cluster operator match from that allowlist. It omits the Ceph mirror metrics and the VolSync pod match, and it turns `clusterMonitoringLabel` off. Application count comes from RHACM observability.
 
 Refresh the hub console and select All Clusters. Open Data Services, click Data policies, then the Disaster recovery tab.
 
@@ -52,7 +51,7 @@ Layer a second values file, or add keys beside the allowlist:
 
 ### 0.1.0
 
-First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
+First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
 {{ template "chart.homepageLine" . }}
 

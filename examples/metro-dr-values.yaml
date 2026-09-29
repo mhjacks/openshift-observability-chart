@@ -10,13 +10,16 @@
 # This is the same allowlist procedure as Regional-DR, without the Ceph
 # mirror metrics or the VolSync pod match. Application count comes from
 # RHACM observability. The OpenShift DR cluster operator match is the
-# ramen setup health signal.
+# ramen setup health signal. Metro-DR does not label openshift-operators.
 #
 # Prerequisites: OpenShift 4.17, ODF Multicluster Orchestrator with the
 # console plugin, RHACM 2.11, and RHACM observability enabled.
 #
 # Refresh the hub console. Select All Clusters, open Data Services, click
 # Data policies, then the Disaster recovery tab.
+
+clusterMonitoringLabel:
+  enabled: false
 
 acmObservability:
   enabled: true

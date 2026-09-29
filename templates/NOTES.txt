@@ -21,14 +21,18 @@ OpenShift observability objects from release {{ .Release.Name }}:
 {{- if eq $ruleCount 0 }}
 - no Prometheus rules
 {{- end }}
+{{- if .Values.clusterMonitoringLabel.enabled }}
+A bootstrap Job sets {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value }} on namespace {{ .Values.clusterMonitoringLabel.namespace }}.
+A CronJob keeps that label set ({{ .Values.clusterMonitoringLabel.schedule }}).
+{{- end }}
 {{- if .Values.acmObservability.enabled }}
 
 The RHACM allowlist that enables the disaster recovery dashboard is
 {{ .Values.acmObservability.name }} in {{ .Values.acmObservability.namespace }}.
-{{- if has "ceph_rbd_mirror_snapshot_sync_bytes" .Values.acmObservability.names }}
+{{- if and (not .Values.clusterMonitoringLabel.enabled) (has "ceph_rbd_mirror_snapshot_sync_bytes" .Values.acmObservability.names) }}
 Regional-DR also needs the operators namespace labeled:
 
-  oc label namespace openshift-operators openshift.io/cluster-monitoring='true'
+  oc label namespace {{ .Values.clusterMonitoringLabel.namespace }} {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value | squote }}
 {{- end }}
 
 Refresh the hub console, select All Clusters, open Data Services, click
