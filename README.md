@@ -4,7 +4,11 @@
 
 Publish OpenShift console dashboards, Prometheus rules, and scrape configs from values
 
-A default install runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip it. Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
+A default install runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip it.
+
+When `global.clusterPlatform` is AWS, Azure, or GCP, Thanos Ruler gets a persistent volume on `gp3-csi`, `managed-csi`, or `standard-csi`, and user workload monitoring is turned on. Other platforms get no storage class unless you set `monitoring.thanos.storageClassName`. Set `monitoring.thanos.enabled` to `false` to skip it.
+
+Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
 [Monitoring disaster recovery health](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health).
 
 Both usages need OpenShift 4.17, the ODF Multicluster Orchestrator console plugin, RHACM 2.11, and RHACM observability on the hub.
@@ -50,7 +54,9 @@ Layer a second values file, or add keys beside the allowlist:
 
 ### 0.1.0
 
-First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
+First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false.
+
+Thanos Ruler persistent storage follows `global.clusterPlatform` for AWS, Azure, and GCP. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
 **Homepage:** <https://github.com/mhjacks/openshift-observability-chart>
 
@@ -84,10 +90,14 @@ First release. Generic console dashboards, Prometheus rules, ServiceMonitors, Po
 | dashboardDefaults.developer                               | bool   | `false`                                         | Publish to the Developer perspective when a dashboard omits developer                                                                                                                                                                       |
 | dashboardDefaults.namespace                               | string | `"openshift-config-managed"`                    | Namespace that receives console dashboard ConfigMaps                                                                                                                                                                                        |
 | dashboards                                                | object | `{}`                                            | Console dashboards keyed by ConfigMap name. Each entry accepts enabled, namespace, file or an inline document, admin, developer, labels, and annotations. file is a path inside this chart. The inline document is a JSON string or object. |
+| global.clusterPlatform                                    | string | `""`                                            | Cluster platform. AWS, Azure, and GCP select a Thanos Ruler storage class. Other values do not.                                                                                                                                             |
 | monitoring.cluster.annotations                            | object | `{}`                                            | Annotations for the cluster-monitoring-config ConfigMap                                                                                                                                                                                     |
 | monitoring.cluster.config                                 | object | `{}`                                            | Extra keys merged into cluster-monitoring-config data.config.yaml. These override enableUserWorkload.                                                                                                                                       |
 | monitoring.cluster.enableUserWorkload                     | bool   | `false`                                         | enableUserWorkload field written into cluster-monitoring-config                                                                                                                                                                             |
 | monitoring.cluster.enabled                                | bool   | `false`                                         | Render cluster-monitoring-config in openshift-monitoring. This replaces that ConfigMap.                                                                                                                                                     |
+| monitoring.thanos.enabled                                 | bool   | `true`                                          | Give Thanos Ruler a PVC when a storage class is known                                                                                                                                                                                       |
+| monitoring.thanos.storage                                 | string | `"10Gi"`                                        | Thanos Ruler PVC size                                                                                                                                                                                                                       |
+| monitoring.thanos.storageClassName                        | string | `""`                                            | Thanos Ruler storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi.                                                                                                                                                 |
 | monitoring.userWorkload.annotations                       | object | `{}`                                            | Annotations for the user-workload-monitoring-config ConfigMap                                                                                                                                                                               |
 | monitoring.userWorkload.config                            | object | `{}`                                            | Extra keys merged into user-workload-monitoring-config data.config.yaml                                                                                                                                                                     |
 | monitoring.userWorkload.enabled                           | bool   | `false`                                         | Render user-workload-monitoring-config. The openshift-user-workload-monitoring namespace must already exist.                                                                                                                                |

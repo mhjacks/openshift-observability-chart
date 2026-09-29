@@ -1,6 +1,11 @@
-{{- if .Values.monitoring.cluster.enabled }}
+{{- $thanosClass := include "openshift-observability.thanos.storageClassName" . | trim }}
+{{- if or .Values.monitoring.cluster.enabled $thanosClass }}
 {{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.cluster.config)) | default (dict) }}
-{{- $cfg := mergeOverwrite (dict "enableUserWorkload" .Values.monitoring.cluster.enableUserWorkload) $extra }}
+{{- $enableUserWorkload := .Values.monitoring.cluster.enableUserWorkload }}
+{{- if $thanosClass }}
+{{- $enableUserWorkload = true }}
+{{- end }}
+{{- $cfg := mergeOverwrite (dict "enableUserWorkload" $enableUserWorkload) $extra }}
 {{- $meta := dict "name" "cluster-monitoring-config" "namespace" "openshift-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" (default (dict) .Values.monitoring.cluster.annotations) }}
 ---
 apiVersion: v1
@@ -10,10 +15,14 @@ data:
   config.yaml: |
 {{ toYaml $cfg | indent 4 }}
 {{- end }}
-{{- if .Values.monitoring.userWorkload.enabled }}
+{{- if or .Values.monitoring.userWorkload.enabled $thanosClass }}
 {{- $base := dict }}
 {{- if .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement }}
 {{- $_ := set $base "namespacesWithoutLabelEnforcement" .Values.monitoring.userWorkload.namespacesWithoutLabelEnforcement }}
+{{- end }}
+{{- if $thanosClass }}
+{{- $spec := dict "storageClassName" $thanosClass "resources" (dict "requests" (dict "storage" .Values.monitoring.thanos.storage)) }}
+{{- $_ := set $base "thanosRuler" (dict "volumeClaimTemplate" (dict "spec" $spec)) }}
 {{- end }}
 {{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.userWorkload.config)) | default (dict) }}
 {{- $cfg := mergeOverwrite $base $extra }}

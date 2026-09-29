@@ -1,0 +1,102 @@
+---
+suite: thanos ruler storage
+templates:
+  - templates/monitoring-config.yaml
+release:
+  name: observability
+tests:
+  - it: uses gp3-csi on AWS and enables user workload monitoring
+    set:
+      global:
+        clusterPlatform: AWS
+    asserts:
+      - hasDocuments:
+          count: 2
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enableUserWorkload: true"
+        documentSelector:
+          path: metadata.name
+          value: cluster-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storageClassName: gp3-csi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storage: 10Gi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+
+  - it: uses managed-csi on Azure
+    set:
+      global:
+        clusterPlatform: Azure
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storageClassName: managed-csi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+
+  - it: uses standard-csi on GCP
+    set:
+      global:
+        clusterPlatform: gcp
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storageClassName: standard-csi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+
+  - it: leaves Thanos storage unset for other platforms
+    set:
+      global:
+        clusterPlatform: vSphere
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: leaves Thanos storage unset when the platform is empty
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: uses an explicit storage class on any platform
+    set:
+      global:
+        clusterPlatform: vSphere
+      monitoring:
+        thanos:
+          storageClassName: thin-csi
+          storage: 20Gi
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storageClassName: thin-csi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "storage: 20Gi"
+        documentSelector:
+          path: metadata.name
+          value: user-workload-monitoring-config
+
+  - it: skips Thanos storage when disabled
+    set:
+      global:
+        clusterPlatform: AWS
+      monitoring:
+        thanos:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

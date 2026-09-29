@@ -4,6 +4,10 @@
 # Regional-DR: examples/regional-dr-values.yaml
 # Metro-DR: examples/metro-dr-values.yaml
 
+global:
+  # -- Cluster platform. AWS, Azure, and GCP select a Thanos Ruler storage class. Other values do not.
+  clusterPlatform: ""
+
 # -- Chart name override used on standard labels
 nameOverride: ""
 
@@ -53,6 +57,13 @@ monitoring:
     annotations: {}
     # -- Extra keys merged into user-workload-monitoring-config data.config.yaml
     config: {}
+  thanos:
+    # -- Give Thanos Ruler a PVC when a storage class is known
+    enabled: true
+    # -- Thanos Ruler PVC size
+    storage: 10Gi
+    # -- Thanos Ruler storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi.
+    storageClassName: ""
 
 acmObservability:
   # -- Render the RHACM observability custom metrics allowlist

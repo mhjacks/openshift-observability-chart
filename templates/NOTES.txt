@@ -21,6 +21,11 @@ OpenShift observability objects from release {{ .Release.Name }}:
 {{- if eq $ruleCount 0 }}
 - no Prometheus rules
 {{- end }}
+{{- $thanosClass := include "openshift-observability.thanos.storageClassName" . | trim }}
+{{- if $thanosClass }}
+Thanos Ruler stores metrics on storage class {{ $thanosClass }} ({{ .Values.monitoring.thanos.storage }}).
+User workload monitoring is enabled so Thanos Ruler can run.
+{{- end }}
 {{- if .Values.clusterMonitoringLabel.enabled }}
 A bootstrap Job sets {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value }} on namespace {{ .Values.clusterMonitoringLabel.namespace }}.
 A CronJob keeps that label set ({{ .Values.clusterMonitoringLabel.schedule }}).

@@ -89,6 +89,28 @@ ose-cli-rhel9 provides oc. Repository and tag stay separate, as in vp-manage-pro
 {{- end -}}
 
 {{/*
+Storage class for the Thanos Ruler PVC.
+AWS, Azure, and GCP have defaults. Every other platform, including an empty
+global.clusterPlatform, has none unless monitoring.thanos.storageClassName is set.
+*/}}
+{{- define "openshift-observability.thanos.storageClassName" -}}
+{{- if .Values.monitoring.thanos.enabled -}}
+{{- if .Values.monitoring.thanos.storageClassName -}}
+{{- .Values.monitoring.thanos.storageClassName -}}
+{{- else -}}
+{{- $platform := .Values.global.clusterPlatform | default "" | lower -}}
+{{- if eq $platform "aws" -}}
+gp3-csi
+{{- else if eq $platform "azure" -}}
+managed-csi
+{{- else if eq $platform "gcp" -}}
+standard-csi
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Pod template shared by the bootstrap Job and the CronJob.
 */}}
 {{- define "openshift-observability.clusterMonitoringLabel.podTemplate" -}}
