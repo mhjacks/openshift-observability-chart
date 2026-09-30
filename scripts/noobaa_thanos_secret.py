@@ -32,19 +32,27 @@ def decode_secret_value(data, key):
 
 
 def thanos_yaml(bucket, endpoint_value, access_key, secret_key, insecure):
-    flag = "true" if insecure else "false"
-    return "\n".join(
-        [
-            "type: s3",
-            "config:",
-            "  bucket: " + yaml_double_quote(bucket),
-            "  endpoint: " + yaml_double_quote(endpoint_value),
-            "  insecure: " + flag,
-            "  access_key: " + yaml_double_quote(access_key),
-            "  secret_key: " + yaml_double_quote(secret_key),
-            "",
-        ]
-    )
+    # Thanos config.insecure selects plain HTTP. NooBaa serves HTTPS on port 443
+    # and closes a plain HTTP connection. Skip verification instead: the
+    # in-cluster certificate is not in the Thanos trust store.
+    lines = [
+        "type: s3",
+        "config:",
+        "  bucket: " + yaml_double_quote(bucket),
+        "  endpoint: " + yaml_double_quote(endpoint_value),
+        "  insecure: false",
+        "  access_key: " + yaml_double_quote(access_key),
+        "  secret_key: " + yaml_double_quote(secret_key),
+    ]
+    if insecure:
+        lines.extend(
+            [
+                "  http_config:",
+                "    insecure_skip_verify: true",
+            ]
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def build_secret(configmap, secret, target_name, target_namespace, target_key, insecure):

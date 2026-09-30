@@ -43,3 +43,4 @@ tags
 # End of https://www.toptal.com/developers/gitignore/api/helm,vim,linux
 
 .vscode/
+__pycache__/

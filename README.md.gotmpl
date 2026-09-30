@@ -20,7 +20,7 @@ A default install creates the Thanos bucket on hub NooBaa and writes secret `tha
 
 ## Thanos object storage
 
-The hub Multicloud Object Gateway storage class `openshift-storage.noobaa.io` is the default. Ceph RGW uses the same claim with storage class `ocs-storagecluster-ceph-rgw`. An ObjectBucketClaim creates the bucket. A bootstrap Job waits for its Secret and ConfigMap, writes `thanos.yaml`, and a CronJob keeps that secret current. The endpoint is the in-cluster service `s3.openshift-storage.svc` with `insecure: true`.
+The hub Multicloud Object Gateway storage class `openshift-storage.noobaa.io` is the default. Ceph RGW uses the same claim with storage class `ocs-storagecluster-ceph-rgw`. An ObjectBucketClaim creates the bucket. A bootstrap Job waits for its Secret and ConfigMap, writes `thanos.yaml`, and a CronJob keeps that secret current. The endpoint is the in-cluster service `s3.openshift-storage.svc:443` over HTTPS. The NooBaa certificate is not in the Thanos trust store, so the secret sets `http_config.insecure_skip_verify`. Thanos treats its own `insecure: true` as plain HTTP, and NooBaa closes that connection.
 
 The Job deletes a leftover ExternalSecret of the same name so an earlier Vault copy does not overwrite the bucket credentials.
 

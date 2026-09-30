@@ -47,7 +47,8 @@ class NoobaaThanosSecretTest(unittest.TestCase):
         text = self.body(document)
         self.assertIn('endpoint: "s3.openshift-storage.svc:443"', text)
         self.assertIn('bucket: "metrics"', text)
-        self.assertIn("insecure: true", text)
+        self.assertIn("insecure: false", text)
+        self.assertIn("insecure_skip_verify: true", text)
         self.assertIn('access_key: "access"', text)
         self.assertIn('secret_key: "secret"', text)
         self.assertEqual(document["metadata"]["name"], "thanos-object-storage")
@@ -64,6 +65,7 @@ class NoobaaThanosSecretTest(unittest.TestCase):
         text = self.body(document)
         self.assertIn('endpoint: "s3.example.com:8443"', text)
         self.assertIn("insecure: false", text)
+        self.assertNotIn("insecure_skip_verify", text)
 
     def test_secret_key_is_quoted(self):
         document = builder.build_secret(

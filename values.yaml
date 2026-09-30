@@ -132,7 +132,7 @@ acmObservability:
         generateBucketName: observability-thanos
         # -- ObjectBucketClaim storage class. openshift-storage.noobaa.io is Multicloud Object Gateway. ocs-storagecluster-ceph-rgw is Ceph RGW.
         storageClassName: openshift-storage.noobaa.io
-        # -- Skip TLS verification. The in-cluster endpoint is s3.openshift-storage.svc.
+        # -- Skip TLS verification for the in-cluster HTTPS endpoint. Thanos still uses HTTPS. Plain HTTP is closed by NooBaa on port 443.
         insecure: true
         # -- Seconds to wait for the claim Secret and ConfigMap
         waitSeconds: 240
