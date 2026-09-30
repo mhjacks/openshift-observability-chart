@@ -9,7 +9,7 @@ A default install creates `MultiClusterObservability` and runs a bootstrap Job a
 
 Thanos Ruler storage follows `clusterPlatform` when that is set, otherwise `global.clusterPlatform` from the patterns operator. AWS, Azure, and GCP use `gp3-csi`, `managed-csi`, and `standard-csi`. Other platforms get no storage class unless you set `monitoring.thanos.storageClassName`. Set `monitoring.thanos.enabled` to `false` to skip it.
 
-The chart writes `enableUserWorkload: true` into `cluster-monitoring-config`. A bootstrap Job waits until `openshift-user-workload-monitoring` exists, then applies `user-workload-monitoring-config`. A CronJob keeps that config applied. Set `monitoring.cluster.config.enableUserWorkload` to `false` to skip both.
+The chart does not adopt `cluster-monitoring-config`. A bootstrap Job and a CronJob merge `enableUserWorkload: true` into that ConfigMap and leave keys they do not set, including the endpoint observability operator's Alertmanager and label entries. The same Job waits until `openshift-user-workload-monitoring` exists, then merges `user-workload-monitoring-config` the same way. Set `monitoring.cluster.config.enableUserWorkload` to `false` to skip both.
 
 Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster recovery on the hub follows the two OpenShift Data Foundation 4.22 usages in
 [Monitoring disaster recovery health](https://docs.redhat.com/en/documentation/red_hat_openshift_data_foundation/4.22/html/configuring_openshift_data_foundation_disaster_recovery_for_openshift_workloads/monitoring_disaster_recovery_health).
@@ -135,7 +135,7 @@ Layer a second values file, or add keys beside the allowlist:
 
 First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A default install creates `MultiClusterObservability`. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false.
 
-Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlatform` for AWS, Azure, and GCP. The user-workload ConfigMap is applied by a Job after its namespace exists.
+Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlatform` for AWS, Azure, and GCP. A Job merges that Thanos Ruler storage into `user-workload-monitoring-config` after its namespace exists, and merges `enableUserWorkload` into `cluster-monitoring-config` without replacing the observability operator's keys.
 
 An ExternalSecret loads Thanos object storage from the pattern `values-secret.yaml` entry `thanos-object-storage`. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 

@@ -45,16 +45,16 @@ namespaces: {}
 
 monitoring:
   cluster:
-    # -- Render cluster-monitoring-config in openshift-monitoring. This replaces that ConfigMap.
+    # -- Merge a desired fragment into cluster-monitoring-config. The chart does not adopt that ConfigMap.
     enabled: false
-    # -- enableUserWorkload field written into cluster-monitoring-config
+    # -- enableUserWorkload field merged into cluster-monitoring-config
     enableUserWorkload: false
-    # -- Annotations for the cluster-monitoring-config ConfigMap
+    # -- Annotations for the desired cluster monitoring fragment
     annotations: {}
-    # -- Extra keys merged into cluster-monitoring-config data.config.yaml. These override enableUserWorkload.
+    # -- Extra keys merged into cluster-monitoring-config. These override enableUserWorkload. A list replaces the live list.
     config: {}
   userWorkload:
-    # -- Apply user-workload-monitoring-config after its namespace exists
+    # -- Merge user-workload-monitoring-config after its namespace exists
     enabled: false
     # -- Projects whose PrometheusRules are not rewritten with their own namespace label
     namespacesWithoutLabelEnforcement: []

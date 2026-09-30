@@ -200,8 +200,46 @@ monitoring.cluster.config.enableUserWorkload false suppresses that.
 {{- end -}}
 
 {{/*
-Pod template shared by the user-workload apply Job and CronJob.
-The Job waits until Cluster Monitoring Operator creates the namespace.
+true when a Job should merge cluster-monitoring-config.
+User workload monitoring needs enableUserWorkload, so that path is included.
+*/}}
+{{- define "openshift-observability.clusterConfig.shouldApply" -}}
+{{- if .Values.monitoring.cluster.enabled -}}
+true
+{{- else -}}
+{{- include "openshift-observability.userWorkload.shouldApply" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterConfig.base" -}}
+{{- printf "%s-cluster-monitoring" .Release.Name | trunc 45 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterConfig.desiredName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-desired" (include "openshift-observability.clusterConfig.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.clusterConfig.scriptName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-merge" (include "openshift-observability.clusterConfig.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{/*
+Fragment merged into cluster-monitoring-config. This is not the live object.
+*/}}
+{{- define "openshift-observability.clusterConfig.yaml" -}}
+{{- $apply := include "openshift-observability.userWorkload.shouldApply" . | trim -}}
+{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.cluster.config)) | default dict -}}
+{{- $enable := .Values.monitoring.cluster.enableUserWorkload -}}
+{{- if $apply -}}
+{{- $enable = true -}}
+{{- end -}}
+{{- toYaml (mergeOverwrite (dict "enableUserWorkload" $enable) $extra) -}}
+{{- end -}}
+
+{{/*
+Pod template shared by the monitoring merge Job and CronJob.
+The cluster fragment is merged first. User workload config is merged after
+Cluster Monitoring Operator creates openshift-user-workload-monitoring.
 */}}
 {{- define "openshift-observability.userWorkload.podTemplate" -}}
 metadata:
@@ -219,9 +257,17 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   volumes:
-    - name: config
+    - name: merge
+      configMap:
+        name: {{ include "openshift-observability.clusterConfig.scriptName" . }}
+    - name: cluster
+      configMap:
+        name: {{ include "openshift-observability.clusterConfig.desiredName" . }}
+    {{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+    - name: uwm
       configMap:
         name: {{ include "openshift-observability.userWorkload.desiredName" . }}
+    {{- end }}
     - name: tmp
       emptyDir: {}
   containers:
@@ -231,6 +277,8 @@ spec:
       env:
         - name: HOME
           value: /tmp
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
         - name: TARGET_NAMESPACE
           value: openshift-user-workload-monitoring
         - name: TARGET_NAME
@@ -243,23 +291,34 @@ spec:
         - |
           set -euo pipefail
           if command -v oc >/dev/null 2>&1; then
-            cli=oc
+            CLI=oc
           else
-            cli=kubectl
+            CLI=kubectl
           fi
-          deadline=$((SECONDS + WAIT_SECONDS))
-          until "$cli" get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; do
-            if (( SECONDS >= deadline )); then
-              echo "timed out waiting for namespace $TARGET_NAMESPACE" >&2
-              exit 1
+          export CLI
+          merge_config() {
+            local namespace="$1"
+            local name="$2"
+            local file="$3"
+            if [[ ! -s "$file" ]]; then
+              return 0
             fi
-            echo "waiting for namespace $TARGET_NAMESPACE"
-            sleep 10
-          done
-          "$cli" create configmap "$TARGET_NAME" \
-            --namespace "$TARGET_NAMESPACE" \
-            --from-file=config.yaml=/etc/monitoring/config.yaml \
-            --dry-run=client -o yaml | "$cli" apply -f -
+            TARGET_NAMESPACE="$namespace" TARGET_NAME="$name" DESIRED_FILE="$file" \
+              python3 -B /etc/merge/merge.py
+          }
+          merge_config openshift-monitoring cluster-monitoring-config /etc/cluster/config.yaml
+          if [[ -f /etc/uwm/config.yaml ]]; then
+            deadline=$((SECONDS + WAIT_SECONDS))
+            until "$CLI" get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; do
+              if (( SECONDS >= deadline )); then
+                echo "timed out waiting for namespace $TARGET_NAMESPACE" >&2
+                exit 1
+              fi
+              echo "waiting for namespace $TARGET_NAMESPACE"
+              sleep 10
+            done
+            merge_config "$TARGET_NAMESPACE" "$TARGET_NAME" /etc/uwm/config.yaml
+          fi
       securityContext:
         allowPrivilegeEscalation: false
         readOnlyRootFilesystem: true
@@ -275,9 +334,17 @@ spec:
           cpu: 100m
           memory: 256Mi
       volumeMounts:
-        - name: config
-          mountPath: /etc/monitoring
+        - name: merge
+          mountPath: /etc/merge
           readOnly: true
+        - name: cluster
+          mountPath: /etc/cluster
+          readOnly: true
+        {{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+        - name: uwm
+          mountPath: /etc/uwm
+          readOnly: true
+        {{- end }}
         - name: tmp
           mountPath: /tmp
 {{- end -}}

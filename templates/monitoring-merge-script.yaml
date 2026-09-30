@@ -1,0 +1,11 @@
+{{- if include "openshift-observability.clusterConfig.shouldApply" . | trim }}
+{{- $name := include "openshift-observability.clusterConfig.scriptName" . }}
+{{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  merge.py: |
+{{ .Files.Get "scripts/merge_monitoring_config.py" | indent 4 }}
+{{- end }}

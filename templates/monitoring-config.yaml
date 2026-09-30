@@ -4,24 +4,15 @@
 {{- fail "monitoring.userWorkload is enabled but has no namespacesWithoutLabelEnforcement or config" }}
 {{- end }}
 {{- end }}
-{{- $apply := include "openshift-observability.userWorkload.shouldApply" . | trim }}
-{{- if or .Values.monitoring.cluster.enabled $apply }}
-{{- $extra := fromYaml (toYaml (default (dict) .Values.monitoring.cluster.config)) | default (dict) }}
-{{- $enableUserWorkload := .Values.monitoring.cluster.enableUserWorkload }}
-{{- if $apply }}
-{{- $enableUserWorkload = true }}
-{{- end }}
-{{- $cfg := mergeOverwrite (dict "enableUserWorkload" $enableUserWorkload) $extra }}
+{{- if include "openshift-observability.clusterConfig.shouldApply" . | trim }}
 {{- $annotations := merge (dict) (default (dict) .Values.monitoring.cluster.annotations) }}
-{{- if $apply }}
 {{- $_ := set $annotations "argocd.argoproj.io/sync-wave" "1" }}
-{{- end }}
-{{- $meta := dict "name" "cluster-monitoring-config" "namespace" "openshift-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" $annotations }}
+{{- $meta := dict "name" (include "openshift-observability.clusterConfig.desiredName" .) "namespace" "openshift-monitoring" "root" $ "component" "monitoring-config" "labels" (dict) "annotations" $annotations }}
 ---
 apiVersion: v1
 kind: ConfigMap
 {{ include "openshift-observability.metadata" $meta }}
 data:
   config.yaml: |
-{{ toYaml $cfg | indent 4 }}
+{{ include "openshift-observability.clusterConfig.yaml" . | indent 4 }}
 {{- end }}

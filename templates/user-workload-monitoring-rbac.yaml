@@ -1,4 +1,4 @@
-{{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+{{- if include "openshift-observability.clusterConfig.shouldApply" . | trim }}
 {{- $name := include "openshift-observability.userWorkload.serviceAccount" . }}
 {{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "user-workload-monitoring" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
 ---
@@ -17,7 +17,9 @@ rules:
     verbs: ["get"]
   - apiGroups: [""]
     resources: ["configmaps"]
-    resourceNames: ["user-workload-monitoring-config"]
+    resourceNames:
+      - cluster-monitoring-config
+      - user-workload-monitoring-config
     verbs: ["get", "update", "patch"]
   - apiGroups: [""]
     resources: ["configmaps"]

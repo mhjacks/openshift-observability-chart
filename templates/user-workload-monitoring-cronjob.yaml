@@ -1,4 +1,4 @@
-{{- if include "openshift-observability.userWorkload.shouldApply" . | trim }}
+{{- if include "openshift-observability.clusterConfig.shouldApply" . | trim }}
 {{- $name := include "openshift-observability.userWorkload.cronjobName" . }}
 {{- $meta := dict "name" $name "namespace" "openshift-monitoring" "root" $ "component" "user-workload-monitoring" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "5") }}
 ---

@@ -2,7 +2,10 @@
 suite: monitoring config and ACM allowlist
 templates:
   - templates/monitoring-config.yaml
+  - templates/monitoring-merge-script.yaml
   - templates/user-workload-monitoring-desired.yaml
+  - templates/user-workload-monitoring-bootstrap-job.yaml
+  - templates/user-workload-monitoring-rbac.yaml
   - templates/acm-allowlist.yaml
 release:
   name: observability
@@ -31,26 +34,40 @@ tests:
           count: 0
         template: templates/acm-allowlist.yaml
       - equal:
+          path: metadata.name
+          value: observability-cluster-monitoring-desired
+        template: templates/monitoring-config.yaml
+      - equal:
           path: metadata.namespace
           value: openshift-monitoring
         template: templates/monitoring-config.yaml
-        documentSelector:
-          path: metadata.name
-          value: cluster-monitoring-config
       - matchRegex:
           path: data["config.yaml"]
           pattern: "enableUserWorkload: true"
         template: templates/monitoring-config.yaml
-        documentSelector:
-          path: metadata.name
-          value: cluster-monitoring-config
       - matchRegex:
           path: data["config.yaml"]
           pattern: "retention: 15d"
         template: templates/monitoring-config.yaml
+      - matchRegex:
+          path: data["merge.py"]
+          pattern: "def reconcile"
+        template: templates/monitoring-merge-script.yaml
+      - contains:
+          path: rules[1].resourceNames
+          content: cluster-monitoring-config
+        template: templates/user-workload-monitoring-rbac.yaml
         documentSelector:
-          path: metadata.name
-          value: cluster-monitoring-config
+          path: kind
+          value: ClusterRole
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "merge.py"
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "waiting for namespace"
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
       - matchRegex:
           path: data["config.yaml"]
           pattern: "dr-observability"
@@ -85,6 +102,31 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: no namespacesWithoutLabelEnforcement or config
+
+  - it: merges cluster config without user workload monitoring
+    templates:
+      - templates/monitoring-config.yaml
+      - templates/user-workload-monitoring-desired.yaml
+      - templates/user-workload-monitoring-bootstrap-job.yaml
+    set:
+      monitoring:
+        cluster:
+          enabled: true
+          enableUserWorkload: false
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "enableUserWorkload: false"
+        template: templates/monitoring-config.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/user-workload-monitoring-desired.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
+      - notExists:
+          path: spec.template.spec.volumes[2].configMap
+        template: templates/user-workload-monitoring-bootstrap-job.yaml
 
   - it: renders the ACM allowlist
     templates:
