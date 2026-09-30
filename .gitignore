@@ -23,7 +23,8 @@
 ### Vim ###
 # Swap
 [._]*.s[a-v][a-z]
-!*.svg  # comment out if you don't need vector files
+# The swap pattern above also matches names such as .icon.svg.
+!*.svg
 [._]*.sw[a-p]
 [._]s[a-rt-v][a-z]
 [._]ss[a-gi-z]
@@ -44,3 +45,13 @@ tags
 
 .vscode/
 __pycache__/
+*.py[cod]
+
+# helm package writes the archive in the repo root. charts/*.tgz is above.
+/*.tgz
+
+# Keep credentials out of this repo.
+values-secret.yaml
+kubeconfig
+kubeconfig.*
+*.kubeconfig
