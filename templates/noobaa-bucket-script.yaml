@@ -1,0 +1,11 @@
+{{- if include "openshift-observability.noobaa.enabled" . | trim }}
+{{- $name := include "openshift-observability.noobaa.scriptName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.noobaa.targetNamespace" .) "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: v1
+kind: ConfigMap
+{{ include "openshift-observability.metadata" $meta }}
+data:
+  noobaa_thanos_secret.py: |
+{{ .Files.Get "scripts/noobaa_thanos_secret.py" | indent 4 }}
+{{- end }}

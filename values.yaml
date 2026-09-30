@@ -85,12 +85,19 @@ acmObservability:
   namespace: open-cluster-management-observability
   # -- Allowlist ConfigMap name
   name: observability-metrics-custom-allowlist
-  # -- Metric names collected from managed clusters
+  # -- Metric names collected from platform Prometheus on managed clusters
   names: []
-  # -- Metric match expressions collected from managed clusters
+  # -- Metric match expressions collected from platform Prometheus on managed clusters
   matches: []
-  # -- Recording rules evaluated for managed-cluster metrics. Each item has record and expr.
+  # -- Recording rules evaluated for platform metrics. Each item has record and expr.
   recordingRules: []
+  userWorkload:
+    # -- Metric names collected from user-workload Prometheus on managed clusters
+    names: []
+    # -- Metric match expressions collected from user-workload Prometheus on managed clusters
+    matches: []
+    # -- Recording rules evaluated for user-workload metrics. Each item has record and expr.
+    recordingRules: []
   # -- Annotations for the allowlist ConfigMap
   annotations: {}
   multiClusterObservability:
@@ -101,17 +108,48 @@ acmObservability:
     # -- StatefulSet storage class. Empty uses AWS gp3-csi, Azure managed-csi, or GCP standard-csi from clusterPlatform.
     storageClassName: ""
     metricObjectStorage:
-      # -- Secret written by the ExternalSecret. Advanced Cluster Management reads key thanos.yaml.
+      # -- Secret Advanced Cluster Management reads. The ExternalSecret or the NooBaa Job writes it.
       name: thanos-object-storage
       # -- Key in the object storage secret
       key: thanos.yaml
       externalSecret:
-        # -- Create an ExternalSecret from the values-secret.yaml entry thanos-object-storage
-        enabled: true
+        # -- Create an ExternalSecret from the values-secret.yaml entry thanos-object-storage. Set noobaa.enabled to false to use this. Ignored while noobaa.enabled is true.
+        enabled: false
         # -- Vault path. Field thanos.yaml is the secret key.
         vaultKey: secret/data/hub/thanos-object-storage
         # -- How often External Secrets refreshes the secret
         refreshInterval: 15s
+      noobaa:
+        # -- Create the Thanos bucket on hub NooBaa or Ceph RGW and write thanos.yaml from the ObjectBucketClaim. Turns the ExternalSecret off. The Job deletes a leftover ExternalSecret of the same name.
+        enabled: true
+        # -- Create the ObjectBucketClaim. Set false to use a claim that already exists.
+        createClaim: true
+        # -- ObjectBucketClaim namespace. Empty uses the Advanced Cluster Management observability namespace.
+        namespace: ""
+        # -- ObjectBucketClaim name. The provisioner creates a Secret and ConfigMap of the same name.
+        name: observability-thanos
+        # -- Prefix the provisioner uses for the bucket name
+        generateBucketName: observability-thanos
+        # -- ObjectBucketClaim storage class. openshift-storage.noobaa.io is Multicloud Object Gateway. ocs-storagecluster-ceph-rgw is Ceph RGW.
+        storageClassName: openshift-storage.noobaa.io
+        # -- Skip TLS verification. The in-cluster endpoint is s3.openshift-storage.svc.
+        insecure: true
+        # -- Seconds to wait for the claim Secret and ConfigMap
+        waitSeconds: 240
+        # -- CronJob schedule that rewrites thanos.yaml after the bootstrap Job
+        schedule: "*/15 * * * *"
+        # ose-cli-rhel9 provides oc and python3. The tag does not need to match the cluster version exactly.
+        image:
+          # -- Image repository for the NooBaa bucket Job and CronJob
+          repository: registry.redhat.io/openshift4/ose-cli-rhel9
+          # -- Image tag
+          tag: v4.22
+          # -- Image pull policy
+          pullPolicy: IfNotPresent
+        # -- Seconds before the Job or CronJob pod is killed
+        activeDeadlineSeconds: 300
+        # -- Bootstrap Job retries while the claim or the API is not ready yet
+        backoffLimit: 99
 
 clusterMonitoringLabel:
   # -- Run a bootstrap Job that labels the operators namespace, then a CronJob that keeps the label set
@@ -138,3 +176,18 @@ clusterMonitoringLabel:
   backoffLimit: 99
   # -- Namespace for the Job, CronJob, and ServiceAccount. Empty uses the release namespace.
   jobNamespace: open-cluster-management-observability
+  managedClusters:
+    # -- Namespaces on managed clusters that receive the monitoring label. Empty skips the policy. The policy does not replace other labels. Enforce creates a missing namespace.
+    namespaces: []
+    # -- Hub namespace for the Policy, Placement, and PlacementBinding. It needs a ManagedClusterSetBinding for each cluster set the Placement selects.
+    namespace: open-cluster-management
+    # -- enforce sets the label. inform only reports it.
+    remediationAction: enforce
+    # -- Policy severity when a namespace is missing the label
+    severity: low
+    # -- Leave the hub local-cluster off this Placement. The hub label Job covers the hub.
+    excludeLocalCluster: true
+    # -- ManagedClusterSet names. Empty uses every set bound to the policy namespace.
+    clusterSets: []
+    # -- Extra Placement label selector. matchLabels and matchExpressions are ANDed with excludeLocalCluster.
+    labelSelector: {}

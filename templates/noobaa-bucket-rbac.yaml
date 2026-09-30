@@ -1,0 +1,108 @@
+{{- if include "openshift-observability.noobaa.enabled" . | trim }}
+{{- $name := include "openshift-observability.noobaa.serviceAccount" . }}
+{{- $target := include "openshift-observability.noobaa.targetNamespace" . }}
+{{- $claimNamespace := include "openshift-observability.noobaa.claimNamespace" . }}
+{{- $claimName := include "openshift-observability.noobaa.claimName" . }}
+{{- $secretName := .Values.acmObservability.multiClusterObservability.metricObjectStorage.name }}
+{{- $meta := dict "name" $name "namespace" $target "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: v1
+kind: ServiceAccount
+{{ include "openshift-observability.metadata" $meta }}
+automountServiceAccountToken: false
+{{- if eq $claimNamespace $target }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+{{ include "openshift-observability.metadata" $meta }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ $claimName | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      {{- range uniq (list $claimName $secretName) }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+{{ include "openshift-observability.metadata" $meta }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $target }}
+{{- else }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+{{ include "openshift-observability.metadata" $meta }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    resourceNames: [{{ $secretName | quote }}]
+    verbs: ["get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+{{ include "openshift-observability.metadata" $meta }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $target }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+{{ include "openshift-observability.metadata" (dict "name" $name "namespace" $claimNamespace "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1")) }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ $claimName | quote }}]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $claimName | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+{{ include "openshift-observability.metadata" (dict "name" $name "namespace" $claimNamespace "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1")) }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $target }}
+{{- end }}
+{{- end }}

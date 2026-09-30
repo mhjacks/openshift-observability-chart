@@ -30,11 +30,18 @@ A Job applies that config after openshift-user-workload-monitoring exists.
 A bootstrap Job sets {{ .Values.clusterMonitoringLabel.key }}={{ .Values.clusterMonitoringLabel.value }} on namespace {{ .Values.clusterMonitoringLabel.namespace }}.
 A CronJob keeps that label set ({{ .Values.clusterMonitoringLabel.schedule }}).
 {{- end }}
+{{- with .Values.clusterMonitoringLabel.managedClusters.namespaces }}
+An RHACM policy sets {{ $.Values.clusterMonitoringLabel.key }}={{ $.Values.clusterMonitoringLabel.value }} on managed-cluster namespaces: {{ join ", " . }}.
+The policy is {{ include "openshift-observability.monitoringLabel.policyName" $ }} in {{ $.Values.clusterMonitoringLabel.managedClusters.namespace }}.
+{{- end }}
 {{- if or .Values.acmObservability.enabled .Values.acmObservability.multiClusterObservability.enabled }}
 {{- if .Values.acmObservability.multiClusterObservability.enabled }}
 
 MultiClusterObservability {{ .Values.acmObservability.multiClusterObservability.name }} turns the Overview cards on.
-{{- if .Values.acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.enabled }}
+{{- if .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.enabled }}
+A Job writes {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.name }} key {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.key }} from the hub NooBaa ObjectBucketClaim {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.name }}.
+That Job removes an ExternalSecret of the same name when one is still present.
+{{- else if .Values.acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.enabled }}
 An ExternalSecret writes {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.name }} key {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.key }} from {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey }}.
 Add a thanos-object-storage entry to values-secret.yaml, then run make load-secrets.
 {{- else }}

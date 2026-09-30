@@ -1,0 +1,20 @@
+{{- if include "openshift-observability.noobaa.enabled" . | trim }}
+{{- $noobaa := .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa }}
+{{- $name := include "openshift-observability.noobaa.cronjobName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.noobaa.targetNamespace" .) "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "5") }}
+---
+apiVersion: batch/v1
+kind: CronJob
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  schedule: {{ $noobaa.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $noobaa.backoffLimit }}
+      activeDeadlineSeconds: {{ $noobaa.activeDeadlineSeconds }}
+      template:
+        {{- include "openshift-observability.noobaa.podTemplate" . | nindent 8 }}
+{{- end }}

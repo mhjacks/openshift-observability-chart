@@ -1,0 +1,16 @@
+{{- if include "openshift-observability.noobaa.enabled" . | trim }}
+{{- $noobaa := .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa }}
+{{- $name := include "openshift-observability.noobaa.bootstrapName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.noobaa.targetNamespace" .) "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "3") }}
+---
+apiVersion: batch/v1
+kind: Job
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  parallelism: 1
+  completions: 1
+  backoffLimit: {{ $noobaa.backoffLimit }}
+  activeDeadlineSeconds: {{ $noobaa.activeDeadlineSeconds }}
+  template:
+    {{- include "openshift-observability.noobaa.podTemplate" . | nindent 4 }}
+{{- end }}

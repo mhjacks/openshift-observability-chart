@@ -5,7 +5,7 @@
 
 {{ template "chart.description" . }}
 
-A default install creates `MultiClusterObservability` and runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label. Set `clusterMonitoringLabel.enabled` to `false` to skip the label. Set `acmObservability.multiClusterObservability.enabled` to `false` to skip the observability object.
+A default install creates `MultiClusterObservability` and runs a bootstrap Job and a CronJob that set `openshift.io/cluster-monitoring=true` on `openshift-operators`. That is the Regional-DR monitoring label on the hub. Set `clusterMonitoringLabel.enabled` to `false` to skip the label. Set `clusterMonitoringLabel.managedClusters.namespaces` to apply that label on managed clusters with an RHACM policy. Set `acmObservability.multiClusterObservability.enabled` to `false` to skip the observability object.
 
 Thanos Ruler storage follows `clusterPlatform` when that is set, otherwise `global.clusterPlatform` from the patterns operator. AWS, Azure, and GCP use `gp3-csi`, `managed-csi`, and `standard-csi`. Other platforms get no storage class unless you set `monitoring.thanos.storageClassName`. Set `monitoring.thanos.enabled` to `false` to skip it.
 
@@ -16,11 +16,29 @@ Dashboards, rules, and the RHACM allowlist stay off until you set them. Disaster
 
 Both usages need OpenShift 4.17, the Data Foundation Multicluster Orchestrator console plugin, and RHACM. `MultiClusterObservability` turns the disaster recovery Overview cards on.
 
-An ExternalSecret writes secret `thanos-object-storage` key `thanos.yaml` in `open-cluster-management-observability`. AWS, Azure, and GCP set the StatefulSet storage class to `gp3-csi`, `managed-csi`, or `standard-csi`.
+A default install creates the Thanos bucket on hub NooBaa and writes secret `thanos-object-storage` key `thanos.yaml` in `open-cluster-management-observability`. AWS, Azure, and GCP set the StatefulSet storage class to `gp3-csi`, `managed-csi`, or `standard-csi`.
 
 ## Thanos object storage
 
-Add the object storage file to the pattern `values-secret.yaml` (version 2.0). Keep that file out of Git. With no `vaultPrefixes`, the loader stores it at `secret/hub/thanos-object-storage`, which External Secrets reads as `secret/data/hub/thanos-object-storage`.
+The hub Multicloud Object Gateway storage class `openshift-storage.noobaa.io` is the default. Ceph RGW uses the same claim with storage class `ocs-storagecluster-ceph-rgw`. An ObjectBucketClaim creates the bucket. A bootstrap Job waits for its Secret and ConfigMap, writes `thanos.yaml`, and a CronJob keeps that secret current. The endpoint is the in-cluster service `s3.openshift-storage.svc` with `insecure: true`.
+
+The Job deletes a leftover ExternalSecret of the same name so an earlier Vault copy does not overwrite the bucket credentials.
+
+To use a bucket that already exists, leave the claim in place and point the Job at it:
+
+```yaml
+acmObservability:
+  multiClusterObservability:
+    metricObjectStorage:
+      noobaa:
+        createClaim: false
+        namespace: openshift-storage
+        name: obc-observability
+```
+
+## External object storage
+
+Set `noobaa.enabled` to `false` and `externalSecret.enabled` to `true` to load `thanos.yaml` from an external bucket instead of hub NooBaa. Add the object storage file to the pattern `values-secret.yaml` (version 2.0). Keep that file out of Git. With no `vaultPrefixes`, the loader stores it at `secret/hub/thanos-object-storage`, which External Secrets reads as `secret/data/hub/thanos-object-storage`.
 
 ```yaml
 secrets:
@@ -90,7 +108,35 @@ config:
   max_retries: 0
 ```
 
-From the pattern repository, run `make load-secrets`. The chart ExternalSecret uses ClusterSecretStore `vault-backend`. Override `secretStore` or `acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey` when the store or path is different. Set `externalSecret.enabled` to `false` to supply the Kubernetes secret yourself.
+From the pattern repository, run `make load-secrets`. The chart ExternalSecret uses ClusterSecretStore `vault-backend`. Override `secretStore` or `acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey` when the store or path is different.
+
+```yaml
+acmObservability:
+  multiClusterObservability:
+    metricObjectStorage:
+      noobaa:
+        enabled: false
+      externalSecret:
+        enabled: true
+```
+
+Leave both `noobaa.enabled` and `externalSecret.enabled` false to supply the Kubernetes secret yourself.
+
+## Managed cluster monitoring label
+
+`clusterMonitoringLabel` labels `openshift-operators` on the hub. Managed clusters use a separate RHACM policy. Set `clusterMonitoringLabel.managedClusters.namespaces` to the projects that should receive `openshift.io/cluster-monitoring`. An empty list skips the policy.
+
+```yaml
+clusterMonitoringLabel:
+  managedClusters:
+    namespaces:
+      - openshift-storage
+      - openshift-operators
+```
+
+The Policy, Placement, and PlacementBinding are created in `open-cluster-management`. That namespace needs a ManagedClusterSetBinding for each cluster set you select. The Placement skips the hub `local-cluster`. Set `excludeLocalCluster` to `false` to include it. `clusterSets` limits the sets, and `labelSelector` adds match labels or expressions.
+
+`remediationAction: enforce` adds the label and creates a namespace that does not exist yet. Other labels on the namespace stay. `inform` only reports the missing label.
 
 ## Regional-DR
 
@@ -127,17 +173,17 @@ Layer a second values file, or add keys beside the allowlist:
 - `dashboards.<name>` publishes a console ConfigMap. Set `file` to a JSON file in this chart, or set an inline document. Use Grafana schema version 14 and datasource `cluster-prometheus-proxy`. The map key is the ConfigMap name. `admin` and `developer` choose the console perspective.
 - `prometheusRules.<name>` adds recording rules and alerts. Use namespace `openshift-monitoring` for platform metrics. Platform monitoring loads rules from namespaces labeled `openshift.io/cluster-monitoring=true`. For rules that query across projects, use a user project listed in `monitoring.userWorkload.namespacesWithoutLabelEnforcement`.
 - `serviceMonitors.<name>` and `podMonitors.<name>` copy `spec` through as written.
-- Extra managed-cluster metrics belong on `acmObservability.names` or `acmObservability.matches`.
+- Extra managed-cluster metrics belong on `acmObservability.names` or `acmObservability.matches` when platform Prometheus scrapes them. Metrics scraped by user-workload Prometheus, including the Ceph mirror metrics when `openshift-storage` has no `openshift.io/cluster-monitoring` label, belong on `acmObservability.userWorkload.names` or `acmObservability.userWorkload.matches`.
 
 ## Notable changes
 
 ### 0.1.0
 
-First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A default install creates `MultiClusterObservability`. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false.
+First release. Generic console dashboards, Prometheus rules, ServiceMonitors, PodMonitors, and an RHACM metrics allowlist. A default install creates `MultiClusterObservability`. A bootstrap Job and CronJob keep `openshift.io/cluster-monitoring=true` on `openshift-operators` unless `clusterMonitoringLabel.enabled` is false. `clusterMonitoringLabel.managedClusters.namespaces` propagates that label to managed clusters with an RHACM policy.
 
 Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlatform` for AWS, Azure, and GCP. A Job merges that Thanos Ruler storage into `user-workload-monitoring-config` after its namespace exists, and merges `enableUserWorkload` into `cluster-monitoring-config` without replacing the observability operator's keys.
 
-An ExternalSecret loads Thanos object storage from the pattern `values-secret.yaml` entry `thanos-object-storage`. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
+A default install creates the Thanos bucket on hub NooBaa. An external bucket uses the ExternalSecret and the pattern `values-secret.yaml` entry `thanos-object-storage` when `noobaa.enabled` is false. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
 {{ template "chart.homepageLine" . }}
 

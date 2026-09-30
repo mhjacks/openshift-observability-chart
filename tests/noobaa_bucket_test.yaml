@@ -1,0 +1,129 @@
+---
+suite: hub NooBaa object bucket
+templates:
+  - templates/noobaa-bucket.yaml
+  - templates/noobaa-bucket-script.yaml
+  - templates/noobaa-bucket-rbac.yaml
+  - templates/noobaa-bucket-networkpolicy.yaml
+  - templates/noobaa-bucket-bootstrap-job.yaml
+  - templates/noobaa-bucket-cronjob.yaml
+  - templates/thanos-object-storage-external-secret.yaml
+release:
+  name: observability
+  namespace: open-cluster-management-observability
+tests:
+  - it: creates the claim and writes thanos.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+        template: templates/noobaa-bucket.yaml
+      - equal:
+          path: kind
+          value: ObjectBucketClaim
+        template: templates/noobaa-bucket.yaml
+      - equal:
+          path: metadata.name
+          value: observability-thanos
+        template: templates/noobaa-bucket.yaml
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+        template: templates/noobaa-bucket.yaml
+      - equal:
+          path: spec.storageClassName
+          value: openshift-storage.noobaa.io
+        template: templates/noobaa-bucket.yaml
+      - equal:
+          path: spec.generateBucketName
+          value: observability-thanos
+        template: templates/noobaa-bucket.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/thanos-object-storage-external-secret.yaml
+      - hasDocuments:
+          count: 3
+        template: templates/noobaa-bucket-rbac.yaml
+      - equal:
+          path: rules[4].resourceNames[0]
+          value: thanos-object-storage
+        template: templates/noobaa-bucket-rbac.yaml
+        documentSelector:
+          path: kind
+          value: Role
+      - matchRegex:
+          path: data["noobaa_thanos_secret.py"]
+          pattern: "def build_secret"
+        template: templates/noobaa-bucket-script.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "waiting for object bucket claim"
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "removing ExternalSecret"
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[3].value
+          value: observability-thanos
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[7].value
+          value: "true"
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - equal:
+          path: spec.schedule
+          value: "*/15 * * * *"
+        template: templates/noobaa-bucket-cronjob.yaml
+      - hasDocuments:
+          count: 1
+        template: templates/noobaa-bucket-networkpolicy.yaml
+
+  - it: uses an existing claim in another namespace
+    set:
+      acmObservability:
+        multiClusterObservability:
+          metricObjectStorage:
+            noobaa:
+              enabled: true
+              createClaim: false
+              namespace: openshift-storage
+              name: obc-observability
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/noobaa-bucket.yaml
+      - hasDocuments:
+          count: 5
+        template: templates/noobaa-bucket-rbac.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: openshift-storage
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[3].value
+          value: obc-observability
+        template: templates/noobaa-bucket-bootstrap-job.yaml
+      - equal:
+          path: metadata.namespace
+          value: openshift-storage
+        template: templates/noobaa-bucket-rbac.yaml
+        documentIndex: 3
+      - equal:
+          path: kind
+          value: Role
+        template: templates/noobaa-bucket-rbac.yaml
+        documentIndex: 3
+
+  - it: requires MultiClusterObservability
+    templates:
+      - templates/noobaa-bucket.yaml
+    set:
+      acmObservability:
+        multiClusterObservability:
+          enabled: false
+          metricObjectStorage:
+            noobaa:
+              enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "metricObjectStorage.noobaa.enabled requires multiClusterObservability.enabled"

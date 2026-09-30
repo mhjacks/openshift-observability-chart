@@ -1,0 +1,103 @@
+{{- $mc := .Values.clusterMonitoringLabel.managedClusters }}
+{{- $namespaces := uniq (default (list) $mc.namespaces) }}
+{{- if $namespaces }}
+{{- $action := $mc.remediationAction }}
+{{- if not (has $action (list "enforce" "inform")) }}
+{{- fail (printf "clusterMonitoringLabel.managedClusters.remediationAction %q must be enforce or inform" $action) }}
+{{- end }}
+{{- $severity := $mc.severity }}
+{{- if not (has $severity (list "low" "medium" "high" "critical")) }}
+{{- fail (printf "clusterMonitoringLabel.managedClusters.severity %q must be low, medium, high, or critical" $severity) }}
+{{- end }}
+{{- $policyNamespace := include "openshift-observability.dnsName" $mc.namespace }}
+{{- $name := include "openshift-observability.monitoringLabel.policyName" . }}
+{{- $labelKey := .Values.clusterMonitoringLabel.key }}
+{{- $labelValue := .Values.clusterMonitoringLabel.value }}
+{{- $selector := $mc.labelSelector | default dict }}
+{{- $matchLabels := $selector.matchLabels | default dict }}
+{{- $expressions := $selector.matchExpressions | default list }}
+{{- $exclude := $mc.excludeLocalCluster }}
+{{- $meta := dict "name" $name "namespace" $policyNamespace "root" $ "component" "managed-cluster-monitoring-label" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+{{- range $namespaces }}
+{{- $_ := include "openshift-observability.dnsName" . -}}
+{{- end }}
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  disabled: false
+  remediationAction: {{ $action }}
+  # Argo CD annotations stay on the hub policy.
+  copyPolicyMetadata: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: {{ $name }}
+        spec:
+          remediationAction: {{ $action }}
+          severity: {{ $severity }}
+          object-templates:
+            {{- range $namespaces }}
+            - complianceType: musthave
+              metadataComplianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: {{ . }}
+                  labels:
+                    {{ $labelKey }}: {{ $labelValue | quote }}
+            {{- end }}
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  {{- with $mc.clusterSets }}
+  clusterSets:
+    {{- range . }}
+    - {{ include "openshift-observability.dnsName" . }}
+    {{- end }}
+  {{- end }}
+  {{- if or $exclude $matchLabels $expressions }}
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          {{- with $matchLabels }}
+          matchLabels:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or $exclude $expressions }}
+          matchExpressions:
+            {{- if $exclude }}
+            - key: local-cluster
+              operator: NotIn
+              values:
+                - "true"
+            {{- end }}
+            {{- range $expressions }}
+            - key: {{ .key | quote }}
+              operator: {{ .operator }}
+              {{- with .values }}
+              values:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          {{- end }}
+  {{- end }}
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+{{ include "openshift-observability.metadata" $meta }}
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: {{ $name }}
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: {{ $name }}
+{{- end }}

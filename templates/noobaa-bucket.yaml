@@ -1,0 +1,20 @@
+{{- if .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.enabled }}
+{{- if not .Values.acmObservability.multiClusterObservability.enabled }}
+{{- fail "metricObjectStorage.noobaa.enabled requires multiClusterObservability.enabled" }}
+{{- end }}
+{{- end }}
+{{- if and (include "openshift-observability.noobaa.enabled" . | trim) .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.createClaim }}
+{{- $noobaa := .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa }}
+{{- if not $noobaa.storageClassName }}
+{{- fail "noobaa.storageClassName is required when creating the ObjectBucketClaim" }}
+{{- end }}
+{{- $name := include "openshift-observability.noobaa.claimName" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.noobaa.claimNamespace" .) "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict "argocd.argoproj.io/sync-wave" "1") }}
+---
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  generateBucketName: {{ include "openshift-observability.dnsName" $noobaa.generateBucketName }}
+  storageClassName: {{ $noobaa.storageClassName }}
+{{- end }}

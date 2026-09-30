@@ -43,6 +43,13 @@ tests:
               - __name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"
               - __name__="kube_running_pod_ready",namespace=~"volsync-system|openshift-operators",pod=~"volsync.*"
         template: templates/acm-allowlist.yaml
+      - equal:
+          path: data["uwl_metrics_list.yaml"]
+          value: |
+            names:
+              - ceph_rbd_mirror_snapshot_sync_bytes
+              - ceph_rbd_mirror_snapshot_snapshots
+        template: templates/acm-allowlist.yaml
       - hasDocuments:
           count: 1
         template: templates/multicluster-observability.yaml

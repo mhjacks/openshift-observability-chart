@@ -13,9 +13,12 @@
 # ramen setup health signal. Metro-DR does not label openshift-operators.
 #
 # Prerequisites: OpenShift 4.17, the Data Foundation Multicluster Orchestrator
-# console plugin, and RHACM. The chart creates MultiClusterObservability and an
-# ExternalSecret for thanos-object-storage. Add that name to values-secret.yaml
-# and run make load-secrets. See the chart README.
+# console plugin, and RHACM. The chart creates MultiClusterObservability and
+# the Thanos bucket on hub NooBaa. For an external bucket, set
+# metricObjectStorage.noobaa.enabled to false and
+# metricObjectStorage.externalSecret.enabled to true, add
+# thanos-object-storage to values-secret.yaml, and run make load-secrets.
+# See the chart README.
 #
 # Refresh the hub console. Select Fleet Management, open Data Services,
 # click Disaster recovery, then the Overview tab.

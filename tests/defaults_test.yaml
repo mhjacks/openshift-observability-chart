@@ -47,38 +47,35 @@ tests:
           path: spec.storageConfig.storageClass
         template: templates/multicluster-observability.yaml
       - hasDocuments:
-          count: 1
-        template: templates/thanos-object-storage-external-secret.yaml
-      - equal:
-          path: metadata.namespace
-          value: open-cluster-management-observability
-        template: templates/thanos-object-storage-external-secret.yaml
-      - equal:
-          path: spec.secretStoreRef.name
-          value: vault-backend
-        template: templates/thanos-object-storage-external-secret.yaml
-      - equal:
-          path: spec.data[0].secretKey
-          value: thanos.yaml
-        template: templates/thanos-object-storage-external-secret.yaml
-      - equal:
-          path: spec.data[0].remoteRef.key
-          value: secret/data/hub/thanos-object-storage
-        template: templates/thanos-object-storage-external-secret.yaml
-      - equal:
-          path: spec.data[0].remoteRef.property
-          value: thanos.yaml
+          count: 0
         template: templates/thanos-object-storage-external-secret.yaml
 
-  - it: skips the Thanos ExternalSecret when disabled
+  - it: writes an ExternalSecret for an external bucket
     set:
       acmObservability:
         multiClusterObservability:
           metricObjectStorage:
-            externalSecret:
+            noobaa:
               enabled: false
+            externalSecret:
+              enabled: true
     templates:
       - templates/thanos-object-storage-external-secret.yaml
     asserts:
       - hasDocuments:
-          count: 0
+          count: 1
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management-observability
+      - equal:
+          path: spec.secretStoreRef.name
+          value: vault-backend
+      - equal:
+          path: spec.data[0].secretKey
+          value: thanos.yaml
+      - equal:
+          path: spec.data[0].remoteRef.key
+          value: secret/data/hub/thanos-object-storage
+      - equal:
+          path: spec.data[0].remoteRef.property
+          value: thanos.yaml

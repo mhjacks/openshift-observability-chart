@@ -12,11 +12,17 @@
 # openshift-operators. The CronJob keeps that label set. That is the
 # "Enable monitoring for disaster recovery" step, and it is required for
 # Regional-DR. This chart does not create or replace the Namespace.
+# clusterMonitoringLabel.managedClusters.namespaces is the RHACM policy that
+# sets the same label on managed clusters. Leave it empty unless those
+# projects should be scraped by platform Prometheus.
 #
 # Prerequisites: OpenShift 4.17, the Data Foundation Multicluster Orchestrator
-# console plugin, and RHACM. The chart creates MultiClusterObservability and an
-# ExternalSecret for thanos-object-storage. Add that name to values-secret.yaml
-# and run make load-secrets. See the chart README.
+# console plugin, and RHACM. The chart creates MultiClusterObservability and
+# the Thanos bucket on hub NooBaa. For an external bucket, set
+# metricObjectStorage.noobaa.enabled to false and
+# metricObjectStorage.externalSecret.enabled to true, add
+# thanos-object-storage to values-secret.yaml, and run make load-secrets.
+# See the chart README.
 #
 # Refresh the hub console. Select Fleet Management, open Data Services,
 # click Disaster recovery, then the Overview tab.
@@ -31,6 +37,13 @@ acmObservability:
   names:
     - ceph_rbd_mirror_snapshot_sync_bytes
     - ceph_rbd_mirror_snapshot_snapshots
+  # openshift-storage is scraped by user-workload monitoring unless that
+  # namespace has openshift.io/cluster-monitoring=true. The same names have
+  # to be on the user-workload allowlist or the Overview metrics cards stay empty.
+  userWorkload:
+    names:
+      - ceph_rbd_mirror_snapshot_sync_bytes
+      - ceph_rbd_mirror_snapshot_snapshots
   matches:
     - '__name__="csv_succeeded",exported_namespace="openshift-dr-system",name=~"odr-cluster-operator.*"'
     - '__name__="kube_running_pod_ready",namespace=~"volsync-system|openshift-operators",pod=~"volsync.*"'

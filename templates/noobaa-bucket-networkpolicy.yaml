@@ -1,0 +1,28 @@
+{{- if include "openshift-observability.noobaa.enabled" . | trim }}
+{{- $name := include "openshift-observability.noobaa.serviceAccount" . }}
+{{- $meta := dict "name" $name "namespace" (include "openshift-observability.noobaa.targetNamespace" .) "root" $ "component" "noobaa-bucket" "labels" (dict) "annotations" (dict) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+{{ include "openshift-observability.metadata" $meta }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "openshift-observability.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: noobaa-bucket
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

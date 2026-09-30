@@ -32,6 +32,24 @@ One metrics_list.yaml section. Caller passes a list: title, value.
 {{- end -}}
 
 {{/*
+Allowlist document body. Caller passes names, matches, and recordingRules.
+Empty when none of those are set.
+*/}}
+{{- define "openshift-observability.allowlistBody" -}}
+{{- $out := "" -}}
+{{- if .names -}}
+{{- $out = include "openshift-observability.metricsSection" (list "names" .names) -}}
+{{- end -}}
+{{- if .matches -}}
+{{- $out = printf "%s%s" $out (include "openshift-observability.metricsSection" (list "matches" .matches)) -}}
+{{- end -}}
+{{- if .recordingRules -}}
+{{- $out = printf "%s%s" $out (include "openshift-observability.metricsSection" (list "recording_rules" .recordingRules)) -}}
+{{- end -}}
+{{- $out -}}
+{{- end -}}
+
+{{/*
 Standard metadata. Caller passes a dict: name, namespace, root, component, labels, annotations.
 */}}
 {{- define "openshift-observability.metadata" -}}
@@ -86,6 +104,68 @@ ose-cli-rhel9 provides oc. Repository and tag stay separate, as in vp-manage-pro
 
 {{- define "openshift-observability.clusterMonitoringLabel.imagePullPolicy" -}}
 {{- .Values.clusterMonitoringLabel.image.pullPolicy | default "IfNotPresent" -}}
+{{- end -}}
+
+{{- define "openshift-observability.monitoringLabel.policyName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-monitoring-label" .Release.Name | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{/*
+NooBaa ObjectBucketClaim path. Writes thanos.yaml and skips the ExternalSecret.
+*/}}
+{{- define "openshift-observability.noobaa.enabled" -}}
+{{- if and .Values.acmObservability.multiClusterObservability.enabled .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.base" -}}
+{{- printf "%s-noobaa" .Release.Name | trunc 50 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.serviceAccount" -}}
+{{- include "openshift-observability.dnsName" (include "openshift-observability.noobaa.base" .) -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.bootstrapName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-bootstrap" (include "openshift-observability.noobaa.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.cronjobName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-cronjob" (include "openshift-observability.noobaa.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.scriptName" -}}
+{{- include "openshift-observability.dnsName" (printf "%s-script" (include "openshift-observability.noobaa.base" .) | trunc 63 | trimSuffix "-") -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.targetNamespace" -}}
+{{- include "openshift-observability.dnsName" .Values.acmObservability.namespace -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.claimNamespace" -}}
+{{- $configured := .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.namespace -}}
+{{- if $configured -}}
+{{- include "openshift-observability.dnsName" $configured -}}
+{{- else -}}
+{{- include "openshift-observability.noobaa.targetNamespace" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.claimName" -}}
+{{- include "openshift-observability.dnsName" .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.name -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.imageRepository" -}}
+{{- .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.image.repository | default "registry.redhat.io/openshift4/ose-cli-rhel9" -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.imageTag" -}}
+{{- .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.image.tag | default "v4.22" -}}
+{{- end -}}
+
+{{- define "openshift-observability.noobaa.imagePullPolicy" -}}
+{{- .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.image.pullPolicy | default "IfNotPresent" -}}
 {{- end -}}
 
 {{/*
@@ -410,6 +490,117 @@ spec:
           cpu: 100m
           memory: 256Mi
       volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+{{- end -}}
+
+{{/*
+Pod template shared by the NooBaa bucket bootstrap Job and CronJob.
+*/}}
+{{- define "openshift-observability.noobaa.podTemplate" -}}
+metadata:
+  labels:
+    {{- include "openshift-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: noobaa-bucket
+  annotations:
+    openshift.io/required-scc: restricted-v2
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "openshift-observability.noobaa.serviceAccount" . }}
+  automountServiceAccountToken: true
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  volumes:
+    - name: script
+      configMap:
+        name: {{ include "openshift-observability.noobaa.scriptName" . }}
+    - name: tmp
+      emptyDir: {}
+  containers:
+    - name: bucket
+      image: {{ printf "%s:%s" (include "openshift-observability.noobaa.imageRepository" .) (include "openshift-observability.noobaa.imageTag" .) | quote }}
+      imagePullPolicy: {{ include "openshift-observability.noobaa.imagePullPolicy" . }}
+      env:
+        - name: HOME
+          value: /tmp
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: CLAIM_NAMESPACE
+          value: {{ include "openshift-observability.noobaa.claimNamespace" . | quote }}
+        - name: CLAIM_NAME
+          value: {{ include "openshift-observability.noobaa.claimName" . | quote }}
+        - name: TARGET_NAMESPACE
+          value: {{ include "openshift-observability.noobaa.targetNamespace" . | quote }}
+        - name: TARGET_NAME
+          value: {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.name | quote }}
+        - name: TARGET_KEY
+          value: {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.key | quote }}
+        - name: INSECURE
+          value: {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.insecure | quote }}
+        - name: WAIT_SECONDS
+          value: {{ .Values.acmObservability.multiClusterObservability.metricObjectStorage.noobaa.waitSeconds | quote }}
+      command:
+        - /bin/bash
+        - -c
+        - |
+          set -euo pipefail
+          if command -v oc >/dev/null 2>&1; then
+            CLI=oc
+          else
+            CLI=kubectl
+          fi
+          deadline=$((SECONDS + WAIT_SECONDS))
+          host=""
+          access=""
+          while [[ -z "$host" || -z "$access" ]]; do
+            host=$("$CLI" get configmap "$CLAIM_NAME" -n "$CLAIM_NAMESPACE" -o jsonpath='{.data.BUCKET_HOST}' 2>/dev/null || true)
+            access=$("$CLI" get secret "$CLAIM_NAME" -n "$CLAIM_NAMESPACE" -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' 2>/dev/null || true)
+            if [[ -n "$host" && -n "$access" ]]; then
+              break
+            fi
+            if (( SECONDS >= deadline )); then
+              echo "timed out waiting for object bucket claim $CLAIM_NAMESPACE/$CLAIM_NAME" >&2
+              exit 1
+            fi
+            echo "waiting for object bucket claim $CLAIM_NAMESPACE/$CLAIM_NAME"
+            sleep 10
+          done
+          "$CLI" get configmap "$CLAIM_NAME" -n "$CLAIM_NAMESPACE" -o json > /tmp/bucket-cm.json
+          "$CLI" get secret "$CLAIM_NAME" -n "$CLAIM_NAMESPACE" -o json > /tmp/bucket-secret.json
+          CLAIM_CONFIGMAP_FILE=/tmp/bucket-cm.json \
+            CLAIM_SECRET_FILE=/tmp/bucket-secret.json \
+            OUTPUT_FILE=/tmp/thanos-secret.json \
+            python3 -B /etc/noobaa/noobaa_thanos_secret.py
+          if "$CLI" get externalsecret "$TARGET_NAME" -n "$TARGET_NAMESPACE" >/dev/null 2>&1; then
+            echo "removing ExternalSecret $TARGET_NAMESPACE/$TARGET_NAME"
+            owners=$("$CLI" get secret "$TARGET_NAME" -n "$TARGET_NAMESPACE" -o jsonpath='{.metadata.ownerReferences}' 2>/dev/null || true)
+            if [[ -n "$owners" ]]; then
+              "$CLI" patch secret "$TARGET_NAME" -n "$TARGET_NAMESPACE" --type=json \
+                -p '[{"op":"remove","path":"/metadata/ownerReferences"}]'
+            fi
+            "$CLI" delete externalsecret "$TARGET_NAME" -n "$TARGET_NAMESPACE" --wait=true
+          fi
+          "$CLI" apply -f /tmp/thanos-secret.json
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 256Mi
+      volumeMounts:
+        - name: script
+          mountPath: /etc/noobaa
+          readOnly: true
         - name: tmp
           mountPath: /tmp
 {{- end -}}

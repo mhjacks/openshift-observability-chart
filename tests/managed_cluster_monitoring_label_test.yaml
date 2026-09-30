@@ -1,0 +1,139 @@
+---
+suite: managed cluster monitoring label policy
+templates:
+  - templates/managed-cluster-monitoring-label-policy.yaml
+release:
+  name: observability
+  namespace: open-cluster-management-observability
+tests:
+  - it: skips the policy when no namespaces are listed
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: labels the listed namespaces on managed clusters
+    set:
+      clusterMonitoringLabel:
+        enabled: false
+        managedClusters:
+          namespaces:
+            - openshift-storage
+            - my-app
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: spec.remediationAction
+          value: enforce
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.copyPolicyMetadata
+          value: false
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: metadata.namespace
+          value: open-cluster-management
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.policy-templates[0].objectDefinition.spec.object-templates[0].objectDefinition.metadata.name
+          value: openshift-storage
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.policy-templates[0].objectDefinition.spec.object-templates[1].objectDefinition.metadata.labels["openshift.io/cluster-monitoring"]
+          value: "true"
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.policy-templates[0].objectDefinition.spec.object-templates[0].metadataComplianceType
+          value: musthave
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.predicates[0].requiredClusterSelector.labelSelector.matchExpressions[0].key
+          value: local-cluster
+        documentSelector:
+          path: kind
+          value: Placement
+      - equal:
+          path: spec.predicates[0].requiredClusterSelector.labelSelector.matchExpressions[0].operator
+          value: NotIn
+        documentSelector:
+          path: kind
+          value: Placement
+      - equal:
+          path: subjects[0].name
+          value: observability-monitoring-label
+        documentSelector:
+          path: kind
+          value: PlacementBinding
+      - notExists:
+          path: spec.clusterSets
+        documentSelector:
+          path: kind
+          value: Placement
+
+  - it: selects cluster sets and includes the local cluster
+    set:
+      clusterMonitoringLabel:
+        managedClusters:
+          namespaces:
+            - openshift-storage
+          excludeLocalCluster: false
+          clusterSets:
+            - resilient
+          labelSelector:
+            matchLabels:
+              clusterGroup: resilient
+          remediationAction: inform
+          severity: medium
+    asserts:
+      - equal:
+          path: spec.remediationAction
+          value: inform
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.policy-templates[0].objectDefinition.spec.severity
+          value: medium
+        documentSelector:
+          path: kind
+          value: Policy
+      - equal:
+          path: spec.clusterSets[0]
+          value: resilient
+        documentSelector:
+          path: kind
+          value: Placement
+      - equal:
+          path: spec.predicates[0].requiredClusterSelector.labelSelector.matchLabels.clusterGroup
+          value: resilient
+        documentSelector:
+          path: kind
+          value: Placement
+      - notExists:
+          path: spec.predicates[0].requiredClusterSelector.labelSelector.matchExpressions
+        documentSelector:
+          path: kind
+          value: Placement
+
+  - it: rejects an unknown remediation action
+    set:
+      clusterMonitoringLabel:
+        managedClusters:
+          namespaces:
+            - openshift-storage
+          remediationAction: delete
+    asserts:
+      - failedTemplate:
+          errorMessage: 'clusterMonitoringLabel.managedClusters.remediationAction "delete" must be enforce or inform'
