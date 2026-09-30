@@ -30,7 +30,9 @@ secrets:
         onMissingValue: error
 ```
 
-`~/thanos.yaml` is the Thanos object storage file:
+`~/thanos.yaml` is the Thanos object storage file. The same `values-secret.yaml` entry is used for every cloud. These shapes match the [RHACM object-storage secret](https://docs.redhat.com/en/documentation/red_hat_advanced_cluster_management_for_kubernetes/2.16/html/observability/observing-environments-intro).
+
+Amazon S3. `endpoint` has no scheme:
 
 ```yaml
 type: s3
@@ -40,6 +42,51 @@ config:
   insecure: false
   access_key: ACCESS_KEY
   secret_key: SECRET_KEY
+```
+
+Google Cloud Storage. Create a bucket and a service account with `roles/storage.objectAdmin` on that bucket, then download a JSON key. `service_account` is that JSON, not a file path:
+
+```yaml
+type: GCS
+config:
+  bucket: BUCKET
+  service_account: |-
+    {
+      "type": "service_account",
+      "project_id": "PROJECT_ID",
+      "private_key_id": "KEY_ID",
+      "private_key": "-----BEGIN PRIVATE KEY-----\nPRIVATE_KEY\n-----END PRIVATE KEY-----\n",
+      "client_email": "thanos@PROJECT_ID.iam.gserviceaccount.com",
+      "client_id": "CLIENT_ID",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/thanos%40PROJECT_ID.iam.gserviceaccount.com"
+    }
+```
+
+Microsoft Azure. Create a storage account and blob container that are separate from the account attached to the cluster. `endpoint` has no scheme. Sovereign clouds use their own host, such as `blob.core.usgovcloudapi.net`:
+
+```yaml
+type: AZURE
+config:
+  storage_account: STORAGE_ACCOUNT
+  storage_account_key: STORAGE_ACCOUNT_KEY
+  container: CONTAINER
+  endpoint: blob.core.windows.net
+  max_retries: 0
+```
+
+A user-assigned managed identity omits the account key. `user_assigned_id` is the identity client id, and that identity needs Storage Blob Data Contributor on the container:
+
+```yaml
+type: AZURE
+config:
+  storage_account: STORAGE_ACCOUNT
+  container: CONTAINER
+  endpoint: blob.core.windows.net
+  user_assigned_id: USER_ASSIGNED_CLIENT_ID
+  max_retries: 0
 ```
 
 From the pattern repository, run `make load-secrets`. The chart ExternalSecret uses ClusterSecretStore `vault-backend`. Override `secretStore` or `acmObservability.multiClusterObservability.metricObjectStorage.externalSecret.vaultKey` when the store or path is different. Set `externalSecret.enabled` to `false` to supply the Kubernetes secret yourself.
