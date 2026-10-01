@@ -184,11 +184,11 @@ Thanos Ruler persistent storage follows `clusterPlatform` or `global.clusterPlat
 
 A default install creates the Thanos bucket on hub NooBaa. An external bucket uses the ExternalSecret and the pattern `values-secret.yaml` entry `thanos-object-storage` when `noobaa.enabled` is false. `examples/regional-dr-values.yaml` and `examples/metro-dr-values.yaml` enable the hub disaster recovery dashboard.
 
-**Homepage:** <https://github.com/mhjacks/openshift-observability-chart>
+**Homepage:** <https://github.com/validatedpatterns/openshift-observability-chart>
 
 ## Source Code
 
-- <https://github.com/mhjacks/openshift-observability-chart>
+- <https://github.com/validatedpatterns/openshift-observability-chart>
 
 ## Values
 

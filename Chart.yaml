@@ -9,6 +9,6 @@ keywords:
   - monitoring
   - dashboard
   - disaster-recovery
-home: https://github.com/mhjacks/openshift-observability-chart
+home: https://github.com/validatedpatterns/openshift-observability-chart
 sources:
-  - https://github.com/mhjacks/openshift-observability-chart
+  - https://github.com/validatedpatterns/openshift-observability-chart
